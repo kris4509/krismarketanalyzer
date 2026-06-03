@@ -16,6 +16,7 @@ export type ConnState = "connecting" | "open" | "closed" | "error";
  */
 export function useDerivTicks(symbol: string, count: number) {
   const [ticks, setTicks] = useState<Tick[]>([]);
+  const [pip, setPip] = useState<number | null>(null);
   const [state, setState] = useState<ConnState>("connecting");
   const wsRef = useRef<WebSocket | null>(null);
   const symbolRef = useRef(symbol);
