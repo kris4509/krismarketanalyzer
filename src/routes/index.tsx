@@ -58,7 +58,7 @@ function Index() {
   const currentTick = ticks[ticks.length - 1];
   const prevTick = ticks[ticks.length - 2];
   const currentDigit = currentTick
-    ? lastDigit(currentTick.quote, symbolMeta.pip)
+    ? lastDigit(currentTick.quote, pip)
     : null;
   const change = currentTick && prevTick ? currentTick.quote - prevTick.quote : 0;
   const changePct =
@@ -110,7 +110,7 @@ function Index() {
               </div>
               <div className="text-right">
                 <div className="font-mono text-3xl font-bold tabular-nums sm:text-4xl">
-                  {currentTick ? currentTick.quote.toFixed(symbolMeta.pip) : "—"}
+                  {currentTick ? currentTick.quote.toFixed(pip) : "—"}
                 </div>
                 {currentTick && prevTick && (
                   <div
@@ -119,14 +119,14 @@ function Index() {
                       (up ? "text-[var(--rank-most)]" : "text-[var(--rank-least)]")
                     }
                   >
-                    {up ? "▲" : "▼"} {change.toFixed(symbolMeta.pip)} (
+                    {up ? "▲" : "▼"} {change.toFixed(pip)} (
                     {changePct.toFixed(3)}%)
                   </div>
                 )}
               </div>
             </div>
 
-            <TickChart ticks={ticks} pip={symbolMeta.pip} />
+            <TickChart ticks={ticks} pip={pip} />
 
             <div className="space-y-3 border-t border-border pt-5">
               <div className="flex items-baseline justify-between">
