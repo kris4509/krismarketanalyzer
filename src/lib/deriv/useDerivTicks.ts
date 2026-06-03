@@ -26,6 +26,7 @@ export function useDerivTicks(symbol: string, count: number) {
 
   useEffect(() => {
     setTicks([]);
+    setPip(null);
     setState("connecting");
 
     let ws: WebSocket;
