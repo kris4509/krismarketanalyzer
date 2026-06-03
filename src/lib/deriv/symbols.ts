@@ -5,12 +5,15 @@ export type DerivSymbol = {
   pip: number;
 };
 
+// `pip` here is only a fallback used before the live pip_size arrives
+// from the Deriv API. The actual pip is read per-tick from the socket.
 export const DERIV_SYMBOLS: DerivSymbol[] = [
-  // 1-second volatility (default group)
-  { code: "1HZ10V", label: "Volatility 10 (1s) Index", group: "Volatility (1s)", pip: 3 },
+  // 1-second volatility
+  { code: "1HZ10V", label: "Volatility 10 (1s) Index", group: "Volatility (1s)", pip: 2 },
   { code: "1HZ25V", label: "Volatility 25 (1s) Index", group: "Volatility (1s)", pip: 2 },
   { code: "1HZ50V", label: "Volatility 50 (1s) Index", group: "Volatility (1s)", pip: 2 },
   { code: "1HZ75V", label: "Volatility 75 (1s) Index", group: "Volatility (1s)", pip: 2 },
+  { code: "1HZ90V", label: "Volatility 90 (1s) Index", group: "Volatility (1s)", pip: 3 },
   { code: "1HZ100V", label: "Volatility 100 (1s) Index", group: "Volatility (1s)", pip: 2 },
 
   // Standard volatility (2-second ticks)
@@ -22,10 +25,10 @@ export const DERIV_SYMBOLS: DerivSymbol[] = [
 
   // Crash / Boom
   { code: "BOOM300N", label: "Boom 300 Index", group: "Crash/Boom", pip: 3 },
-  { code: "BOOM500", label: "Boom 500 Index", group: "Crash/Boom", pip: 4 },
+  { code: "BOOM500", label: "Boom 500 Index", group: "Crash/Boom", pip: 3 },
   { code: "BOOM1000", label: "Boom 1000 Index", group: "Crash/Boom", pip: 3 },
   { code: "CRASH300N", label: "Crash 300 Index", group: "Crash/Boom", pip: 3 },
-  { code: "CRASH500", label: "Crash 500 Index", group: "Crash/Boom", pip: 4 },
+  { code: "CRASH500", label: "Crash 500 Index", group: "Crash/Boom", pip: 3 },
   { code: "CRASH1000", label: "Crash 1000 Index", group: "Crash/Boom", pip: 3 },
 
   // Jump
