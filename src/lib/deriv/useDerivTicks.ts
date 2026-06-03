@@ -65,6 +65,7 @@ export function useDerivTicks(symbol: string, count: number) {
               prices: number[];
               times: number[];
             };
+            if (typeof data.pip_size === "number") setPip(data.pip_size);
             const fresh: Tick[] = prices.map((p, i) => ({
               epoch: times[i],
               quote: p,
