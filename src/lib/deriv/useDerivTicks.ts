@@ -16,6 +16,7 @@ export type ConnState = "connecting" | "open" | "closed" | "error";
  */
 export function useDerivTicks(symbol: string, count: number) {
   const [ticks, setTicks] = useState<Tick[]>([]);
+  const [pip, setPip] = useState<number | null>(null);
   const [state, setState] = useState<ConnState>("connecting");
   const wsRef = useRef<WebSocket | null>(null);
   const symbolRef = useRef(symbol);
@@ -25,6 +26,7 @@ export function useDerivTicks(symbol: string, count: number) {
 
   useEffect(() => {
     setTicks([]);
+    setPip(null);
     setState("connecting");
 
     let ws: WebSocket;
@@ -63,13 +65,15 @@ export function useDerivTicks(symbol: string, count: number) {
               prices: number[];
               times: number[];
             };
+            if (typeof data.pip_size === "number") setPip(data.pip_size);
             const fresh: Tick[] = prices.map((p, i) => ({
               epoch: times[i],
               quote: p,
             }));
             setTicks(fresh.slice(-countRef.current));
           } else if (data.msg_type === "tick" && data.tick) {
-            const t = data.tick as { epoch: number; quote: number };
+            const t = data.tick as { epoch: number; quote: number; pip_size?: number };
+            if (typeof t.pip_size === "number") setPip(t.pip_size);
             setTicks((prev) => {
               const next = [...prev, { epoch: t.epoch, quote: t.quote }];
               if (next.length > countRef.current) {
@@ -106,5 +110,5 @@ export function useDerivTicks(symbol: string, count: number) {
     };
   }, [symbol, count]);
 
-  return { ticks, state };
+  return { ticks, state, pip };
 }
