@@ -110,5 +110,5 @@ export function useDerivTicks(symbol: string, count: number) {
     };
   }, [symbol, count]);
 
-  return { ticks, state };
+  return { ticks, state, pip };
 }
