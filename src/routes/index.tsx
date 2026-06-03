@@ -45,11 +45,12 @@ function Index() {
     [symbol],
   );
 
-  const { ticks, state } = useDerivTicks(symbol, count);
+  const { ticks, state, pip: livePip } = useDerivTicks(symbol, count);
+  const pip = livePip ?? symbolMeta.pip;
 
   const stats = useMemo(
-    () => computeDigitStats(ticks, symbolMeta.pip),
-    [ticks, symbolMeta.pip],
+    () => computeDigitStats(ticks, pip),
+    [ticks, pip],
   );
 
   const signal = useMemo(() => computeTradeSignal(stats, ticks), [stats, ticks]);
