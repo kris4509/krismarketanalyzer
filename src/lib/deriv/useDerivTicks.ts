@@ -72,7 +72,8 @@ export function useDerivTicks(symbol: string, count: number) {
             }));
             setTicks(fresh.slice(-countRef.current));
           } else if (data.msg_type === "tick" && data.tick) {
-            const t = data.tick as { epoch: number; quote: number };
+            const t = data.tick as { epoch: number; quote: number; pip_size?: number };
+            if (typeof t.pip_size === "number") setPip(t.pip_size);
             setTicks((prev) => {
               const next = [...prev, { epoch: t.epoch, quote: t.quote }];
               if (next.length > countRef.current) {
