@@ -42,13 +42,48 @@ function ScannerPage() {
   const trackerRef = useRef<
     Map<string, { direction: "EVEN" | "ODD"; firstSeen: number }>
   >(new Map());
+  const notifiedRef = useRef<Map<string, string>>(new Map()); // symbol -> direction notified
   const [, force] = useState(0);
+  const [notify, setNotify] = useState<"default" | "granted" | "denied" | "unsupported">(
+    typeof window !== "undefined" && "Notification" in window
+      ? (Notification.permission as "default" | "granted" | "denied")
+      : "unsupported",
+  );
+  const [sound, setSound] = useState(true);
 
   // Tick a re-render every second so heldMs updates smoothly.
   useEffect(() => {
     const id = setInterval(() => force((n) => n + 1), 1000);
     return () => clearInterval(id);
   }, []);
+
+  const requestNotify = async () => {
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+    const perm = await Notification.requestPermission();
+    setNotify(perm as "default" | "granted" | "denied");
+  };
+
+  const beep = () => {
+    try {
+      const AC =
+        (window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext }).AudioContext ||
+        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AC) return;
+      const ctx = new AC();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = "sine";
+      o.frequency.value = 880;
+      g.gain.value = 0.08;
+      o.connect(g);
+      g.connect(ctx.destination);
+      o.start();
+      o.stop(ctx.currentTime + 0.18);
+      setTimeout(() => ctx.close(), 400);
+    } catch {
+      /* ignore */
+    }
+  };
 
   const { tracked, raw } = useMemo(() => {
     const now = Date.now();
@@ -95,6 +130,37 @@ function ScannerPage() {
   const evenCount = tracked.filter((t) => t.direction === "EVEN").length;
   const oddCount = tracked.filter((t) => t.direction === "ODD").length;
 
+  // Fire a desktop notification + beep the first time a signal locks (≥5s).
+  const lockedKey = locked.map((l) => `${l.symbol}:${l.direction}`).join("|");
+  useEffect(() => {
+    const notified = notifiedRef.current;
+    const activeKeys = new Set(tracked.map((t) => t.symbol));
+    for (const k of Array.from(notified.keys())) {
+      if (!activeKeys.has(k)) notified.delete(k);
+    }
+    for (const t of locked) {
+      const prev = notified.get(t.symbol);
+      if (prev === t.direction) continue;
+      notified.set(t.symbol, t.direction);
+      const meta = SCAN_SYMBOLS.find((s) => s.code === t.symbol);
+      const title = `${meta?.label ?? t.symbol} — Trade ${t.direction}`;
+      const body = `Locked signal · ${t.strength.toFixed(1)}% strength · ${t.tickCount} ticks`;
+      if (notify === "granted" && typeof window !== "undefined" && "Notification" in window) {
+        try {
+          const n = new Notification(title, { body, tag: `digitpulse-${t.symbol}` });
+          n.onclick = () => {
+            window.focus();
+            n.close();
+          };
+        } catch {
+          /* ignore */
+        }
+      }
+      if (sound) beep();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lockedKey, notify, sound]);
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <AppHeader live />
@@ -129,6 +195,45 @@ function ScannerPage() {
             ))}
           </div>
         </section>
+
+        <section className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card/50 px-3 py-2 text-xs">
+          <span className="font-mono uppercase tracking-[0.18em] text-muted-foreground">
+            Alerts
+          </span>
+          {notify === "unsupported" ? (
+            <span className="text-muted-foreground">
+              Desktop notifications not supported in this browser.
+            </span>
+          ) : notify === "granted" ? (
+            <span className="rounded-md border border-[var(--rank-most)]/60 px-2 py-0.5 font-mono text-[var(--rank-most)]">
+              Desktop ON
+            </span>
+          ) : (
+            <button
+              onClick={requestNotify}
+              className="rounded-md border border-border bg-background px-2 py-1 font-mono text-foreground hover:border-[var(--rank-most)]"
+            >
+              {notify === "denied"
+                ? "Notifications blocked — enable in browser settings"
+                : "Enable desktop notifications"}
+            </button>
+          )}
+          <button
+            onClick={() => setSound((s) => !s)}
+            className={cn(
+              "rounded-md border px-2 py-1 font-mono",
+              sound
+                ? "border-[var(--rank-second)] text-[var(--rank-second)]"
+                : "border-border text-muted-foreground",
+            )}
+          >
+            Sound {sound ? "ON" : "OFF"}
+          </button>
+          <span className="ml-auto text-[11px] text-muted-foreground">
+            Fires once when a signal locks (≥{PERSIST_MS / 1000}s).
+          </span>
+        </section>
+
 
         <section className="grid gap-3 sm:grid-cols-4">
           <StatCard label="Locked ≥5s" value={locked.length} tone="most" />
