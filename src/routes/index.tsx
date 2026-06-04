@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
+import { AppHeader } from "@/components/analysis/AppHeader";
 import { Controls } from "@/components/analysis/Controls";
 import { DigitCircles } from "@/components/analysis/DigitCircles";
 import { SignalPanel } from "@/components/analysis/SignalPanel";
