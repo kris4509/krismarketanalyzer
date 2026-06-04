@@ -42,13 +42,48 @@ function ScannerPage() {
   const trackerRef = useRef<
     Map<string, { direction: "EVEN" | "ODD"; firstSeen: number }>
   >(new Map());
+  const notifiedRef = useRef<Map<string, string>>(new Map()); // symbol -> direction notified
   const [, force] = useState(0);
+  const [notify, setNotify] = useState<"default" | "granted" | "denied" | "unsupported">(
+    typeof window !== "undefined" && "Notification" in window
+      ? (Notification.permission as "default" | "granted" | "denied")
+      : "unsupported",
+  );
+  const [sound, setSound] = useState(true);
 
   // Tick a re-render every second so heldMs updates smoothly.
   useEffect(() => {
     const id = setInterval(() => force((n) => n + 1), 1000);
     return () => clearInterval(id);
   }, []);
+
+  const requestNotify = async () => {
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+    const perm = await Notification.requestPermission();
+    setNotify(perm as "default" | "granted" | "denied");
+  };
+
+  const beep = () => {
+    try {
+      const AC =
+        (window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext }).AudioContext ||
+        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AC) return;
+      const ctx = new AC();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = "sine";
+      o.frequency.value = 880;
+      g.gain.value = 0.08;
+      o.connect(g);
+      g.connect(ctx.destination);
+      o.start();
+      o.stop(ctx.currentTime + 0.18);
+      setTimeout(() => ctx.close(), 400);
+    } catch {
+      /* ignore */
+    }
+  };
 
   const { tracked, raw } = useMemo(() => {
     const now = Date.now();
