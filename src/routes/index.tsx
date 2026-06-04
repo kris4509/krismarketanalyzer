@@ -68,26 +68,7 @@ function Index() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header className="border-b border-border">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary font-mono text-sm font-bold text-primary-foreground shadow-[var(--shadow-glow)]">
-              DP
-            </div>
-            <div>
-              <h1 className="font-mono text-sm font-semibold tracking-wide">
-                DIGIT PULSE
-              </h1>
-              <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-                Deriv last-digit terminal
-              </p>
-            </div>
-          </div>
-          <div className="hidden font-mono text-[11px] uppercase tracking-widest text-muted-foreground sm:block">
-            Analysis only · Not financial advice
-          </div>
-        </div>
-      </header>
+      <AppHeader live={state === "open"} />
 
       <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6">
         <Controls
