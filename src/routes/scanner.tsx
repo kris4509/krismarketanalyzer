@@ -130,6 +130,37 @@ function ScannerPage() {
   const evenCount = tracked.filter((t) => t.direction === "EVEN").length;
   const oddCount = tracked.filter((t) => t.direction === "ODD").length;
 
+  // Fire a desktop notification + beep the first time a signal locks (≥5s).
+  const lockedKey = locked.map((l) => `${l.symbol}:${l.direction}`).join("|");
+  useEffect(() => {
+    const notified = notifiedRef.current;
+    const activeKeys = new Set(tracked.map((t) => t.symbol));
+    for (const k of Array.from(notified.keys())) {
+      if (!activeKeys.has(k)) notified.delete(k);
+    }
+    for (const t of locked) {
+      const prev = notified.get(t.symbol);
+      if (prev === t.direction) continue;
+      notified.set(t.symbol, t.direction);
+      const meta = SCAN_SYMBOLS.find((s) => s.code === t.symbol);
+      const title = `${meta?.label ?? t.symbol} — Trade ${t.direction}`;
+      const body = `Locked signal · ${t.strength.toFixed(1)}% strength · ${t.tickCount} ticks`;
+      if (notify === "granted" && typeof window !== "undefined" && "Notification" in window) {
+        try {
+          const n = new Notification(title, { body, tag: `digitpulse-${t.symbol}` });
+          n.onclick = () => {
+            window.focus();
+            n.close();
+          };
+        } catch {
+          /* ignore */
+        }
+      }
+      if (sound) beep();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lockedKey, notify, sound]);
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <AppHeader live />
