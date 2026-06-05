@@ -28,6 +28,14 @@ export function DigitCircles({
     <div className="flex flex-wrap items-end justify-center gap-3 sm:gap-4">
       {stats.map((s) => {
         const active = s.digit === currentDigit;
+        const arrow =
+          s.trend === "up" ? "↑" : s.trend === "down" ? "↓" : "→";
+        const arrowCls =
+          s.trend === "up"
+            ? "text-[var(--rank-most)]"
+            : s.trend === "down"
+            ? "text-[var(--rank-least)]"
+            : "text-muted-foreground";
         return (
           <div key={s.digit} className="flex flex-col items-center gap-1.5">
             <div
@@ -39,8 +47,19 @@ export function DigitCircles({
             >
               {s.digit}
             </div>
-            <span className={cn("font-mono text-xs tabular-nums", rankPctClasses[s.rank])}>
+            <span
+              className={cn(
+                "flex items-center gap-1 font-mono text-xs tabular-nums",
+                rankPctClasses[s.rank],
+              )}
+            >
               {s.percent.toFixed(1)}%
+              <span
+                className={cn("text-[11px]", arrowCls)}
+                title={`${s.trendDelta >= 0 ? "+" : ""}${s.trendDelta.toFixed(1)}pp 2nd half vs 1st half`}
+              >
+                {arrow}
+              </span>
             </span>
             <div
               className={cn(
