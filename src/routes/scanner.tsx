@@ -374,6 +374,26 @@ function SignalRow({
       ? "text-[var(--rank-most)] border-[var(--rank-most)]"
       : "text-[var(--rank-second)] border-[var(--rank-second)]";
   const held = (signal.heldMs / 1000).toFixed(1);
+  const currentDigit =
+    signal.lastQuote !== null ? lastDigit(signal.lastQuote, signal.pip) : null;
+  const matchesDirection =
+    currentDigit !== null &&
+    (signal.direction === "EVEN" ? currentDigit % 2 === 0 : currentDigit % 2 === 1);
+  const lastDigitTone =
+    currentDigit === null
+      ? "border-border text-muted-foreground"
+      : matchesDirection
+      ? "border-[var(--rank-most)] text-[var(--rank-most)] shadow-[0_0_28px_-4px_var(--rank-most)]"
+      : "border-[var(--rank-least)] text-[var(--rank-least)] shadow-[0_0_24px_-6px_var(--rank-least)]";
+
+  // Strength bar — strength is share of ticks landing on tradable parity (50–100 scale).
+  const strengthPct = Math.max(0, Math.min(100, signal.strength));
+  const strengthTone =
+    strengthPct >= 58
+      ? "bg-[var(--rank-most)]"
+      : strengthPct >= 53
+      ? "bg-[var(--rank-second)]"
+      : "bg-[var(--rank-second-least)]";
 
   return (
     <div
@@ -384,60 +404,90 @@ function SignalRow({
           : "border-border",
       )}
     >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <span
-            className={cn(
-              "h-2 w-2 rounded-full",
-              locked ? "bg-[var(--rank-most)]" : "bg-[var(--rank-second)]",
-            )}
-          />
-          <div>
-            <div className="font-mono text-base font-semibold">
-              {meta?.label ?? signal.symbol}
-            </div>
-            <div className="font-mono text-[11px] text-muted-foreground">
-              {signal.lastQuote?.toFixed(signal.pip)} · {signal.tickCount} ticks
-              · held {held}s
+      <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
+        {/* LEFT: market info + digits */}
+        <div className="min-w-0">
+          <div className="flex items-center gap-3">
+            <span
+              className={cn(
+                "h-2 w-2 rounded-full",
+                locked ? "bg-[var(--rank-most)]" : "bg-[var(--rank-second)]",
+              )}
+            />
+            <div className="min-w-0">
+              <div className="font-mono text-base font-semibold truncate">
+                {meta?.label ?? signal.symbol}
+              </div>
+              <div className="font-mono text-[11px] text-muted-foreground">
+                {signal.tickCount} ticks · held {held}s
+              </div>
             </div>
           </div>
-        </div>
-        <div className="text-right">
+
+          <div className="mt-4">
+            <CompactCircles stats={signal.stats} showPercent showTrend />
+          </div>
+
           <div
             className={cn(
-              "inline-flex items-center gap-2 rounded-md border px-3 py-1.5 font-mono text-sm font-bold uppercase",
+              "mt-3 rounded-md border-l-2 bg-background/30 px-3 py-2 text-[12px]",
+              locked
+                ? "border-[var(--rank-most)]"
+                : "border-[var(--rank-second)]",
+            )}
+          >
+            Green ({signal.greenDigit}) + Red ({signal.redDigit}) on{" "}
+            <span className="font-semibold">{signal.direction}</span> · Blue (
+            {signal.blueDigit}) + Yellow ({signal.yellowDigit}) on{" "}
+            <span className="font-semibold">
+              {signal.direction === "EVEN" ? "ODD" : "EVEN"}
+            </span>
+          </div>
+        </div>
+
+        {/* RIGHT: live last-digit entry-point panel */}
+        <div className="flex w-full flex-col items-center gap-2 border-t border-border pt-3 sm:w-44 sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0">
+          <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+            Last digit
+          </span>
+          <div
+            className={cn(
+              "flex h-20 w-20 items-center justify-center rounded-full border-2 bg-card font-mono text-4xl font-bold tabular-nums transition-all",
+              lastDigitTone,
+            )}
+          >
+            {currentDigit ?? "—"}
+          </div>
+          <div className="font-mono text-[11px] text-muted-foreground tabular-nums">
+            {signal.lastQuote?.toFixed(signal.pip)}
+          </div>
+          <div
+            className={cn(
+              "mt-1 inline-flex items-center gap-2 rounded-md border px-3 py-1 font-mono text-xs font-bold uppercase",
               dirColor,
             )}
           >
             Trade {signal.direction}
           </div>
-          <div className="mt-1 font-mono text-[11px] text-muted-foreground">
-            {signal.strength.toFixed(1)}% signal strength
+          {/* Strength meter */}
+          <div className="w-full">
+            <div className="flex items-baseline justify-between font-mono text-[10px] text-muted-foreground">
+              <span>Strength</span>
+              <span className="tabular-nums text-foreground">
+                {strengthPct.toFixed(1)}%
+              </span>
+            </div>
+            <div
+              className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted"
+              title={`${strengthPct.toFixed(1)}% of the last ${signal.tickCount} ticks landed on a ${signal.direction.toLowerCase()} digit. Baseline 50% — higher means stronger bias.`}
+            >
+              <div
+                className={cn("h-full transition-all", strengthTone)}
+                style={{ width: `${strengthPct}%` }}
+              />
+            </div>
           </div>
         </div>
-      </div>
-
-      <div className="mt-4">
-        <CompactCircles
-          stats={signal.stats}
-          showPercent
-        />
-      </div>
-
-      <div
-        className={cn(
-          "mt-3 rounded-md border-l-2 bg-background/30 px-3 py-2 text-[12px]",
-          locked
-            ? "border-[var(--rank-most)]"
-            : "border-[var(--rank-second)]",
-        )}
-      >
-        Green ({signal.greenDigit}) + Red ({signal.redDigit}) on{" "}
-        <span className="font-semibold">{signal.direction}</span> · Blue (
-        {signal.blueDigit}) + Yellow ({signal.yellowDigit}) on{" "}
-        <span className="font-semibold">
-          {signal.direction === "EVEN" ? "ODD" : "EVEN"}
-        </span>
       </div>
     </div>
   );
@@ -475,9 +525,11 @@ function MarketCard({
 function CompactCircles({
   stats,
   showPercent,
+  showTrend,
 }: {
   stats: DigitStat[];
   showPercent?: boolean;
+  showTrend?: boolean;
 }) {
   const cls: Record<DigitStat["rank"], string> = {
     most: "border-[var(--rank-most)] text-[var(--rank-most)]",
@@ -500,14 +552,23 @@ function CompactCircles({
             {s.digit}
           </div>
           {showPercent && (
-            <span className="font-mono text-[10px] tabular-nums text-muted-foreground">
+            <span className="flex items-center gap-0.5 font-mono text-[10px] tabular-nums text-muted-foreground">
               {s.percent.toFixed(1)}%
+              {showTrend && <TrendArrow trend={s.trend} />}
             </span>
           )}
         </div>
       ))}
     </div>
   );
+}
+
+function TrendArrow({ trend }: { trend: DigitStat["trend"] }) {
+  if (trend === "up")
+    return <span className="text-[var(--rank-most)]">↑</span>;
+  if (trend === "down")
+    return <span className="text-[var(--rank-least)]">↓</span>;
+  return <span className="text-muted-foreground">→</span>;
 }
 
 function Legend() {
