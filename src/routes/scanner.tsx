@@ -14,7 +14,7 @@ import {
   TICK_COUNT_OPTIONS,
 } from "@/lib/deriv/symbols";
 import { useMultiDerivTicks } from "@/lib/deriv/useMultiDerivTicks";
-import type { DigitStat } from "@/lib/deriv/analysis";
+import { lastDigit, type DigitStat } from "@/lib/deriv/analysis";
 
 // Scan all the 1s volatility markets by default — matches the user's blueprint.
 const SCAN_SYMBOLS = DERIV_SYMBOLS.filter(
