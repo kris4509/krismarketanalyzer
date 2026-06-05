@@ -14,13 +14,23 @@ import {
   TICK_COUNT_OPTIONS,
 } from "@/lib/deriv/symbols";
 import { useMultiDerivTicks } from "@/lib/deriv/useMultiDerivTicks";
-import { lastDigit, type DigitStat } from "@/lib/deriv/analysis";
+import { computeDigitStats, lastDigit, type DigitStat } from "@/lib/deriv/analysis";
 
 // Scan all the 1s volatility markets by default — matches the user's blueprint.
 const SCAN_SYMBOLS = DERIV_SYMBOLS.filter(
   (s) => s.group === "Volatility (1s)",
 );
 const SCAN_CODES = SCAN_SYMBOLS.map((s) => s.code);
+const HISTORY_LIMIT = 20;
+
+type HistoryEvent = {
+  ts: number;
+  symbol: string;
+  label: string;
+  type: "signal" | "cleared";
+  direction?: "EVEN" | "ODD";
+  strength?: number;
+};
 
 export const Route = createFileRoute("/scanner")({
   head: () => ({
@@ -43,6 +53,8 @@ function ScannerPage() {
     Map<string, { direction: "EVEN" | "ODD"; firstSeen: number }>
   >(new Map());
   const notifiedRef = useRef<Map<string, string>>(new Map()); // symbol -> direction notified
+  const historyRef = useRef<HistoryEvent[]>([]);
+  const lastSignalDirRef = useRef<Map<string, "EVEN" | "ODD">>(new Map());
   const [, force] = useState(0);
   const [notify, setNotify] = useState<"default" | "granted" | "denied" | "unsupported">(
     typeof window !== "undefined" && "Notification" in window
@@ -85,10 +97,21 @@ function ScannerPage() {
     }
   };
 
-  const { tracked, raw } = useMemo(() => {
+  type RawRow = {
+    meta: (typeof SCAN_SYMBOLS)[number];
+    signal: EvenOddSignal | null;
+    ticksLen: number;
+    lastQuote: number | null;
+    pip: number;
+    stats: DigitStat[] | null;
+    last20: number[];
+  };
+
+  const { tracked, raw, last20Map } = useMemo(() => {
     const now = Date.now();
-    const raw: { meta: (typeof SCAN_SYMBOLS)[number]; signal: EvenOddSignal | null; ticksLen: number; lastQuote: number | null; pip: number | null }[] = [];
+    const raw: RawRow[] = [];
     const tracked: TrackedSignal[] = [];
+    const last20Map: Record<string, number[]> = {};
     const tracker = trackerRef.current;
 
     for (const meta of SCAN_SYMBOLS) {
@@ -97,7 +120,10 @@ function ScannerPage() {
       const ticks = feed?.ticks ?? [];
       const signal = detectEvenOddSignal(meta.code, ticks, pip);
       const lastQuote = ticks[ticks.length - 1]?.quote ?? null;
-      raw.push({ meta, signal, ticksLen: ticks.length, lastQuote, pip });
+      const stats = ticks.length >= 20 ? computeDigitStats(ticks, pip) : null;
+      const last20 = ticks.slice(-20).map((t) => lastDigit(t.quote, pip));
+      last20Map[meta.code] = last20;
+      raw.push({ meta, signal, ticksLen: ticks.length, lastQuote, pip, stats, last20 });
 
       if (signal) {
         const prev = tracker.get(meta.code);
@@ -120,7 +146,7 @@ function ScannerPage() {
         tracker.delete(meta.code);
       }
     }
-    return { tracked, raw };
+    return { tracked, raw, last20Map };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [feeds]);
 
@@ -129,6 +155,52 @@ function ScannerPage() {
   const noSignal = raw.filter((r) => !r.signal);
   const evenCount = tracked.filter((t) => t.direction === "EVEN").length;
   const oddCount = tracked.filter((t) => t.direction === "ODD").length;
+
+  // ------- Signal history bookkeeping -------
+  // Compare with previous snapshot and log on/off transitions.
+  const currentDirs = new Map<string, "EVEN" | "ODD">();
+  for (const t of tracked) currentDirs.set(t.symbol, t.direction);
+  const prevDirs = lastSignalDirRef.current;
+  const newEvents: HistoryEvent[] = [];
+  const now = Date.now();
+  // Newly appeared or direction-changed
+  for (const [sym, dir] of currentDirs) {
+    const prev = prevDirs.get(sym);
+    if (prev !== dir) {
+      const meta = SCAN_SYMBOLS.find((s) => s.code === sym);
+      const sig = tracked.find((t) => t.symbol === sym);
+      newEvents.push({
+        ts: now,
+        symbol: sym,
+        label: meta?.label ?? sym,
+        type: "signal",
+        direction: dir,
+        strength: sig?.strength,
+      });
+    }
+  }
+  // Cleared
+  for (const [sym, prevDir] of prevDirs) {
+    if (!currentDirs.has(sym)) {
+      const meta = SCAN_SYMBOLS.find((s) => s.code === sym);
+      newEvents.push({
+        ts: now,
+        symbol: sym,
+        label: meta?.label ?? sym,
+        type: "cleared",
+        direction: prevDir,
+      });
+    }
+  }
+  if (newEvents.length) {
+    historyRef.current = [...newEvents.reverse(), ...historyRef.current].slice(
+      0,
+      HISTORY_LIMIT,
+    );
+  }
+  // Update snapshot AFTER diffing
+  lastSignalDirRef.current = currentDirs;
+  const history = historyRef.current;
 
   // Fire a desktop notification + beep the first time a signal locks (≥5s).
   const lockedKey = locked.map((l) => `${l.symbol}:${l.direction}`).join("|");
@@ -250,7 +322,12 @@ function ScannerPage() {
           >
             <div className="space-y-3">
               {locked.map((t) => (
-                <SignalRow key={t.symbol} signal={t} locked />
+                <SignalRow
+                  key={t.symbol}
+                  signal={t}
+                  last20={last20Map[t.symbol] ?? []}
+                  locked
+                />
               ))}
             </div>
           </Section>
@@ -264,7 +341,11 @@ function ScannerPage() {
           >
             <div className="space-y-3">
               {fresh.map((t) => (
-                <SignalRow key={t.symbol} signal={t} />
+                <SignalRow
+                  key={t.symbol}
+                  signal={t}
+                  last20={last20Map[t.symbol] ?? []}
+                />
               ))}
             </div>
           </Section>
@@ -285,7 +366,7 @@ function ScannerPage() {
 
         <Section
           title="No signal"
-          sub="Watching for alignment"
+          sub="Live digit distribution — watching for alignment"
           dotClass="bg-muted-foreground/50"
         >
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -296,9 +377,18 @@ function ScannerPage() {
                 quote={r.lastQuote}
                 pip={r.pip ?? r.meta.pip}
                 ticksLen={r.ticksLen}
+                stats={r.stats}
               />
             ))}
           </div>
+        </Section>
+
+        <Section
+          title="Signal history"
+          sub={`Last ${HISTORY_LIMIT} on/off events`}
+          dotClass="bg-[var(--rank-second-least)]"
+        >
+          <HistoryList events={history} />
         </Section>
 
         <Legend />
@@ -363,9 +453,11 @@ function Section({
 
 function SignalRow({
   signal,
+  last20,
   locked,
 }: {
   signal: TrackedSignal;
+  last20: number[];
   locked?: boolean;
 }) {
   const meta = SCAN_SYMBOLS.find((s) => s.code === signal.symbol);
@@ -426,6 +518,10 @@ function SignalRow({
 
           <div className="mt-4">
             <CompactCircles stats={signal.stats} showPercent showTrend />
+          </div>
+
+          <div className="mt-4">
+            <ParityStrip digits={last20} highlight={signal.direction} />
           </div>
 
           <div
@@ -493,31 +589,169 @@ function SignalRow({
   );
 }
 
+function ParityStrip({
+  digits,
+  highlight,
+}: {
+  digits: number[];
+  highlight?: "EVEN" | "ODD";
+}) {
+  if (digits.length === 0) return null;
+  const evenCount = digits.filter((d) => d % 2 === 0).length;
+  const oddCount = digits.length - evenCount;
+  const evenPct = (evenCount / digits.length) * 100;
+  const oddPct = 100 - evenPct;
+  return (
+    <div className="rounded-lg border border-border/60 bg-background/30 p-2.5">
+      <div className="mb-1.5 flex items-center justify-between">
+        <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+          Even/Odd pattern (last {digits.length})
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-1">
+        {digits.map((d, i) => {
+          const isEven = d % 2 === 0;
+          const isHi =
+            (highlight === "EVEN" && isEven) ||
+            (highlight === "ODD" && !isEven);
+          return (
+            <span
+              key={i}
+              className={cn(
+                "flex h-6 w-6 items-center justify-center rounded-md border font-mono text-[11px] font-bold",
+                isEven
+                  ? "border-[var(--rank-most)]/50 bg-[var(--rank-most)]/10 text-[var(--rank-most)]"
+                  : "border-[var(--rank-least)]/50 bg-[var(--rank-least)]/10 text-[var(--rank-least)]",
+                isHi && "ring-1 ring-current",
+              )}
+              title={`digit ${d}`}
+            >
+              {isEven ? "E" : "O"}
+            </span>
+          );
+        })}
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-3 font-mono text-[11px]">
+        <span className="text-muted-foreground">
+          Even:{" "}
+          <span className="font-bold text-[var(--rank-most)] tabular-nums">
+            {evenPct.toFixed(1)}%
+          </span>
+        </span>
+        <span className="text-muted-foreground">
+          Odd:{" "}
+          <span className="font-bold text-[var(--rank-least)] tabular-nums">
+            {oddPct.toFixed(1)}%
+          </span>
+        </span>
+        <span className="text-muted-foreground">
+          Total:{" "}
+          <span className="font-bold text-foreground tabular-nums">
+            {digits.length}
+          </span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function MarketCard({
   label,
   quote,
   pip,
   ticksLen,
+  stats,
 }: {
   label: string;
   quote: number | null;
   pip: number;
   ticksLen: number;
+  stats: DigitStat[] | null;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
+    <div className="rounded-xl border border-border bg-card p-3">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="h-1.5 w-1.5 rounded-full bg-[var(--rank-most)]" />
-          <span className="font-mono text-sm font-semibold">{label}</span>
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--rank-most)]" />
+          <span className="truncate font-mono text-sm font-semibold">
+            {label}
+          </span>
         </div>
         <span className="font-mono text-xs text-muted-foreground tabular-nums">
           {quote !== null ? quote.toFixed(pip) : "—"}
         </span>
       </div>
+      {stats ? (
+        <div className="mt-2">
+          <CompactCircles stats={stats} showPercent />
+        </div>
+      ) : (
+        <div className="mt-2 font-mono text-[10px] text-muted-foreground">
+          Buffering ticks…
+        </div>
+      )}
       <div className="mt-1 font-mono text-[10px] text-muted-foreground">
-        {ticksLen} ticks buffered
+        {ticksLen} ticks
       </div>
+    </div>
+  );
+}
+
+function HistoryList({ events }: { events: HistoryEvent[] }) {
+  if (events.length === 0) {
+    return (
+      <div className="rounded-lg border border-dashed border-border bg-card/30 p-6 text-center font-mono text-[11px] text-muted-foreground">
+        Waiting for the first signal event…
+      </div>
+    );
+  }
+  return (
+    <div className="max-h-72 overflow-y-auto rounded-xl border border-border bg-card">
+      <ul className="divide-y divide-border">
+        {events.map((e, i) => {
+          const time = new Date(e.ts).toLocaleTimeString();
+          const isSignal = e.type === "signal";
+          const dotColor = !isSignal
+            ? "bg-muted-foreground/40"
+            : e.direction === "EVEN"
+            ? "bg-[var(--rank-most)]"
+            : "bg-[var(--rank-second)]";
+          const badge =
+            !isSignal
+              ? { text: "cleared", cls: "border-border text-muted-foreground" }
+              : e.direction === "EVEN"
+              ? {
+                  text: `EVEN · ${e.strength?.toFixed(0) ?? "—"}%`,
+                  cls: "border-[var(--rank-most)]/60 text-[var(--rank-most)] bg-[var(--rank-most)]/10",
+                }
+              : {
+                  text: `ODD · ${e.strength?.toFixed(0) ?? "—"}%`,
+                  cls: "border-[var(--rank-second)]/60 text-[var(--rank-second)] bg-[var(--rank-second)]/10",
+                };
+          return (
+            <li
+              key={`${e.ts}-${e.symbol}-${i}`}
+              className="flex items-center gap-3 px-3 py-2"
+            >
+              <span className="font-mono text-[10px] tabular-nums text-muted-foreground">
+                {time}
+              </span>
+              <span className={cn("h-1.5 w-1.5 rounded-full", dotColor)} />
+              <span className="min-w-0 flex-1 truncate font-mono text-xs">
+                {e.label}
+              </span>
+              <span
+                className={cn(
+                  "rounded-full border px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider",
+                  badge.cls,
+                )}
+              >
+                {badge.text}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }
