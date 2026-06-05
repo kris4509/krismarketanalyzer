@@ -48,8 +48,14 @@ export function detectEvenOddSignal(
   if (greenParity === blueParity) return null; // need opposite parities
 
   const direction: EvenOddDirection = greenParity === 0 ? "EVEN" : "ODD";
-  const strength = green.percent + red.percent;
-  const oppositeStrength = blue.percent + yellow.percent;
+  // Strength = total % of all ticks whose last digit shares the tradable parity.
+  // This naturally sits around 50 and rises with bias — matching the
+  // "50%+" range seen in similar tools.
+  const parityValue = direction === "EVEN" ? 0 : 1;
+  const strength = stats
+    .filter((s) => s.digit % 2 === parityValue)
+    .reduce((a, s) => a + s.percent, 0);
+  const oppositeStrength = 100 - strength;
   const last = ticks[ticks.length - 1];
 
   return {
