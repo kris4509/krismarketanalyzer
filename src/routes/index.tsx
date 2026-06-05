@@ -111,9 +111,14 @@ function Index() {
             <TickChart ticks={ticks} pip={pip} />
 
             <div className="space-y-3 border-t border-border pt-5">
-              <div className="flex items-baseline justify-between">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <h3 className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
                   Last-digit distribution
+                  <span className="ml-2 normal-case tracking-normal text-muted-foreground/70">
+                    <span className="text-[var(--rank-most)]">↑</span> rising{" "}
+                    <span className="text-[var(--rank-least)]">↓</span> falling{" "}
+                    <span>→</span> flat
+                  </span>
                 </h3>
                 <span className="font-mono text-xs text-muted-foreground">
                   {ticks.length} / {count} ticks
