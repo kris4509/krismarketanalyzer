@@ -5,10 +5,13 @@ export type DigitStat = {
   count: number;
   percent: number;
   rank: "most" | "second" | "second-least" | "least" | "mid";
+  /** Frequency trend: rising if digit appears more in 2nd half than 1st half */
+  trend: "up" | "down" | "flat";
+  /** second-half% minus first-half% in percentage points */
+  trendDelta: number;
 };
 
 export function lastDigit(quote: number, pip: number): number {
-  // Use the pip count to grab the last decimal digit reliably
   const fixed = quote.toFixed(pip);
   return Number(fixed[fixed.length - 1]);
 }
@@ -19,13 +22,35 @@ export function computeDigitStats(ticks: Tick[], pip: number): DigitStat[] {
     counts[lastDigit(t.quote, pip)]++;
   }
   const total = ticks.length || 1;
-  const base = counts.map((c, d) => ({
-    digit: d,
-    count: c,
-    percent: (c / total) * 100,
-  }));
 
-  // Determine ranks based on count
+  // First-half vs second-half frequency → trend arrows
+  const half = Math.floor(ticks.length / 2);
+  const firstCounts = new Array(10).fill(0) as number[];
+  const secondCounts = new Array(10).fill(0) as number[];
+  for (let i = 0; i < ticks.length; i++) {
+    const d = lastDigit(ticks[i].quote, pip);
+    if (i < half) firstCounts[d]++;
+    else secondCounts[d]++;
+  }
+  const firstTotal = half || 1;
+  const secondTotal = ticks.length - half || 1;
+
+  const base = counts.map((c, d) => {
+    const firstPct = (firstCounts[d] / firstTotal) * 100;
+    const secondPct = (secondCounts[d] / secondTotal) * 100;
+    const delta = secondPct - firstPct;
+    let trend: DigitStat["trend"] = "flat";
+    if (delta > 0.6) trend = "up";
+    else if (delta < -0.6) trend = "down";
+    return {
+      digit: d,
+      count: c,
+      percent: (c / total) * 100,
+      trend,
+      trendDelta: delta,
+    };
+  });
+
   const sortedDesc = [...base].sort((a, b) => b.count - a.count);
   const mostDigit = sortedDesc[0]?.digit;
   const secondDigit = sortedDesc[1]?.digit;
