@@ -156,9 +156,10 @@ export const STRATEGIES: Record<
     detect: detectEvenOddSignal,
   },
   threshold: {
-    label: "Threshold (4 × >10%)",
-    sub: "Green >11% · Green/Red opposite parity · ≥4 same-parity digits >10%",
+    label: "Threshold",
+    sub: "Green/Red opposite parity · (≥4 same-parity >10% & green >11%) OR (≥3 same-parity >10.5% & green >12%)",
     detect: detectEvenOddSignalThreshold,
   },
+
 };
 
