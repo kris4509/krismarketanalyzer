@@ -3,11 +3,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AppHeader } from "@/components/analysis/AppHeader";
 import { cn } from "@/lib/utils";
 import {
-  detectEvenOddSignal,
   PERSIST_MS,
+  STRATEGIES,
   type EvenOddSignal,
+  type ScannerStrategy,
   type TrackedSignal,
 } from "@/lib/deriv/scanner";
+
 import {
   DERIV_SYMBOLS,
   DEFAULT_TICK_COUNT,
