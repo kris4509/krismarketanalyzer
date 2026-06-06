@@ -123,7 +123,7 @@ function ScannerPage() {
       const feed = feeds[meta.code];
       const pip = feed?.pip ?? meta.pip;
       const ticks = feed?.ticks ?? [];
-      const signal = detectEvenOddSignal(meta.code, ticks, pip);
+      const signal = detect(meta.code, ticks, pip);
       const lastQuote = ticks[ticks.length - 1]?.quote ?? null;
       const stats = ticks.length >= 20 ? computeDigitStats(ticks, pip) : null;
       const last20 = ticks.slice(-20).map((t) => lastDigit(t.quote, pip));
