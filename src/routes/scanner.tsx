@@ -61,12 +61,18 @@ function ScannerPage() {
   const historyRef = useRef<HistoryEvent[]>([]);
   const lastSignalDirRef = useRef<Map<string, "EVEN" | "ODD">>(new Map());
   const [, force] = useState(0);
-  const [notify, setNotify] = useState<"default" | "granted" | "denied" | "unsupported">(
-    typeof window !== "undefined" && "Notification" in window
-      ? (Notification.permission as "default" | "granted" | "denied")
-      : "unsupported",
-  );
+  const [notify, setNotify] = useState<"default" | "granted" | "denied" | "unsupported">("default");
   const [sound, setSound] = useState(true);
+
+  // Read Notification.permission only on client to avoid SSR hydration mismatch.
+  useEffect(() => {
+    if (typeof window === "undefined" || !("Notification" in window)) {
+      setNotify("unsupported");
+    } else {
+      setNotify(Notification.permission as "default" | "granted" | "denied");
+    }
+  }, []);
+
 
   // Tick a re-render every second so heldMs updates smoothly.
   useEffect(() => {
