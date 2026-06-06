@@ -4,9 +4,12 @@ import { AppHeader } from "@/components/analysis/AppHeader";
 import { cn } from "@/lib/utils";
 import {
   PERSIST_MS,
+  SCANNERS,
+  SCANNER_MODES,
   STRATEGIES,
   type EvenOddSignal,
-  type ScannerStrategy,
+  type EvenOddStrategy,
+  type ScannerMode,
   type TrackedSignal,
 } from "@/lib/deriv/scanner";
 
@@ -18,7 +21,6 @@ import {
 import { useMultiDerivTicks } from "@/lib/deriv/useMultiDerivTicks";
 import { computeDigitStats, lastDigit, type DigitStat } from "@/lib/deriv/analysis";
 
-// Scan all the 1s volatility markets by default — matches the user's blueprint.
 const SCAN_SYMBOLS = DERIV_SYMBOLS.filter(
   (s) => s.group === "Volatility (1s)",
 );
@@ -30,18 +32,37 @@ type HistoryEvent = {
   symbol: string;
   label: string;
   type: "signal" | "cleared";
-  direction?: "EVEN" | "ODD";
+  direction?: string;
   strength?: number;
 };
+
+// Tone helper used in many places — colours direction badges/labels.
+function directionTone(direction: string) {
+  if (direction === "ODD") {
+    return {
+      text: "text-[var(--rank-second)]",
+      border: "border-[var(--rank-second)]",
+      bg: "bg-[var(--rank-second)]",
+      ring: "[var(--rank-second)]",
+    };
+  }
+  // EVEN, UNDER N, OVER N — all use the "green" rank tone.
+  return {
+    text: "text-[var(--rank-most)]",
+    border: "border-[var(--rank-most)]",
+    bg: "bg-[var(--rank-most)]",
+    ring: "[var(--rank-most)]",
+  };
+}
 
 export const Route = createFileRoute("/scanner")({
   head: () => ({
     meta: [
-      { title: "Even / Odd Scanner — Digit Pulse" },
+      { title: "Digit Scanner — Even/Odd · Under · Over" },
       {
         name: "description",
         content:
-          "Real-time scanner for Even/Odd digit-parity setups across Deriv volatility indices, with locked persistent signals.",
+          "Real-time digit scanner for Even/Odd, Under 8, Under 7 and Over 2 setups across Deriv volatility indices, with locked persistent signals and cross-scanner alerts.",
       },
     ],
   }),
@@ -50,21 +71,27 @@ export const Route = createFileRoute("/scanner")({
 
 function ScannerPage() {
   const [count, setCount] = useState(DEFAULT_TICK_COUNT);
-  const [strategy, setStrategy] = useState<ScannerStrategy>("rank-alignment");
-  const detect = STRATEGIES[strategy].detect;
+  const [mode, setMode] = useState<ScannerMode>("even-odd");
+  const [strategy, setStrategy] = useState<EvenOddStrategy>("rank-alignment");
+  const activeScanner = SCANNERS[mode];
+  const detect =
+    mode === "even-odd"
+      ? STRATEGIES[strategy].detect
+      : activeScanner.detect;
   const { feeds, state } = useMultiDerivTicks(SCAN_CODES, count);
 
+  // Tracker keyed by "mode:symbol" so we can hold state across all scanners.
   const trackerRef = useRef<
-    Map<string, { direction: "EVEN" | "ODD"; firstSeen: number }>
+    Map<string, { direction: string; firstSeen: number }>
   >(new Map());
-  const notifiedRef = useRef<Map<string, string>>(new Map()); // symbol -> direction notified
+  const notifiedRef = useRef<Map<string, string>>(new Map());
   const historyRef = useRef<HistoryEvent[]>([]);
-  const lastSignalDirRef = useRef<Map<string, "EVEN" | "ODD">>(new Map());
+  const lastSignalDirRef = useRef<Map<string, string>>(new Map());
   const [, force] = useState(0);
   const [notify, setNotify] = useState<"default" | "granted" | "denied" | "unsupported">("default");
   const [sound, setSound] = useState(true);
+  const [crossAlerts, setCrossAlerts] = useState(true);
 
-  // Read Notification.permission only on client to avoid SSR hydration mismatch.
   useEffect(() => {
     if (typeof window === "undefined" || !("Notification" in window)) {
       setNotify("unsupported");
@@ -73,8 +100,6 @@ function ScannerPage() {
     }
   }, []);
 
-
-  // Tick a re-render every second so heldMs updates smoothly.
   useEffect(() => {
     const id = setInterval(() => force((n) => n + 1), 1000);
     return () => clearInterval(id);
@@ -118,6 +143,7 @@ function ScannerPage() {
     last20: number[];
   };
 
+  // Build raw rows + tracked signals for the ACTIVE scanner.
   const { tracked, raw, last20Map } = useMemo(() => {
     const now = Date.now();
     const raw: RawRow[] = [];
@@ -136,15 +162,13 @@ function ScannerPage() {
       last20Map[meta.code] = last20;
       raw.push({ meta, signal, ticksLen: ticks.length, lastQuote, pip, stats, last20 });
 
+      const key = `${mode}:${meta.code}`;
       if (signal) {
-        const prev = tracker.get(meta.code);
+        const prev = tracker.get(key);
         if (!prev || prev.direction !== signal.direction) {
-          tracker.set(meta.code, {
-            direction: signal.direction,
-            firstSeen: now,
-          });
+          tracker.set(key, { direction: signal.direction, firstSeen: now });
         }
-        const t = tracker.get(meta.code)!;
+        const t = tracker.get(key)!;
         const held = now - t.firstSeen;
         tracked.push({
           ...signal,
@@ -154,28 +178,92 @@ function ScannerPage() {
           persistent: held >= PERSIST_MS,
         });
       } else {
-        tracker.delete(meta.code);
+        tracker.delete(key);
       }
     }
     return { tracked, raw, last20Map };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [feeds, strategy]);
+  }, [feeds, mode, strategy]);
 
+  // ─── Cross-scanner alerts: detect locked signals on the OTHER modes. ───
+  const crossSignals = useMemo(() => {
+    const now = Date.now();
+    const tracker = trackerRef.current;
+    const out: Record<
+      ScannerMode,
+      { locked: number; fresh: number; signals: TrackedSignal[] }
+    > = {
+      "even-odd": { locked: 0, fresh: 0, signals: [] },
+      "under-8": { locked: 0, fresh: 0, signals: [] },
+      "over-2": { locked: 0, fresh: 0, signals: [] },
+      "under-7": { locked: 0, fresh: 0, signals: [] },
+    };
+    for (const m of SCANNER_MODES) {
+      if (m === mode) {
+        // reuse the already-computed tracked list for the active mode
+        for (const t of tracked) {
+          out[m].signals.push(t);
+          if (t.persistent) out[m].locked++;
+          else out[m].fresh++;
+        }
+        continue;
+      }
+      const det = SCANNERS[m].detect;
+      for (const meta of SCAN_SYMBOLS) {
+        const feed = feeds[meta.code];
+        const pip = feed?.pip ?? meta.pip;
+        const ticks = feed?.ticks ?? [];
+        const sig = det(meta.code, ticks, pip);
+        const key = `${m}:${meta.code}`;
+        if (!sig) {
+          tracker.delete(key);
+          continue;
+        }
+        const prev = tracker.get(key);
+        if (!prev || prev.direction !== sig.direction) {
+          tracker.set(key, { direction: sig.direction, firstSeen: now });
+        }
+        const t = tracker.get(key)!;
+        const held = now - t.firstSeen;
+        const ts: TrackedSignal = {
+          ...sig,
+          firstSeen: t.firstSeen,
+          lastSeen: now,
+          heldMs: held,
+          persistent: held >= PERSIST_MS,
+        };
+        out[m].signals.push(ts);
+        if (ts.persistent) out[m].locked++;
+        else out[m].fresh++;
+      }
+    }
+    return out;
+  }, [feeds, mode, tracked]);
 
   const locked = tracked.filter((t) => t.persistent);
   const fresh = tracked.filter((t) => !t.persistent);
   const noSignal = raw.filter((r) => !r.signal);
-  const evenCount = tracked.filter((t) => t.direction === "EVEN").length;
-  const oddCount = tracked.filter((t) => t.direction === "ODD").length;
 
-  // ------- Signal history bookkeeping -------
-  // Compare with previous snapshot and log on/off transitions.
-  const currentDirs = new Map<string, "EVEN" | "ODD">();
+  // For the two right-most stat cards we show context-aware totals.
+  const evenCount =
+    mode === "even-odd"
+      ? tracked.filter((t) => t.direction === "EVEN").length
+      : 0;
+  const oddCount =
+    mode === "even-odd"
+      ? tracked.filter((t) => t.direction === "ODD").length
+      : 0;
+  const avgStrength =
+    tracked.length === 0
+      ? 0
+      : tracked.reduce((a, t) => a + t.strength, 0) / tracked.length;
+
+  // ─── History bookkeeping (active mode only) ───
+  const currentDirs = new Map<string, string>();
   for (const t of tracked) currentDirs.set(t.symbol, t.direction);
   const prevDirs = lastSignalDirRef.current;
   const newEvents: HistoryEvent[] = [];
   const now = Date.now();
-  // Newly appeared or direction-changed
   for (const [sym, dir] of currentDirs) {
     const prev = prevDirs.get(sym);
     if (prev !== dir) {
@@ -191,7 +279,6 @@ function ScannerPage() {
       });
     }
   }
-  // Cleared
   for (const [sym, prevDir] of prevDirs) {
     if (!currentDirs.has(sym)) {
       const meta = SCAN_SYMBOLS.find((s) => s.code === sym);
@@ -210,30 +297,48 @@ function ScannerPage() {
       HISTORY_LIMIT,
     );
   }
-  // Update snapshot AFTER diffing
   lastSignalDirRef.current = currentDirs;
   const history = historyRef.current;
+  // Reset history when switching modes so user isn't confused.
+  useEffect(() => {
+    historyRef.current = [];
+    lastSignalDirRef.current = new Map();
+  }, [mode]);
 
-  // Fire a desktop notification + beep the first time a signal locks (≥5s).
-  const lockedKey = locked.map((l) => `${l.symbol}:${l.direction}`).join("|");
+  // ─── Fire notifications across ALL scanners when a signal locks ───
+  // Build a stable key listing every currently-locked (mode, symbol, direction).
+  const allLocked: Array<{ mode: ScannerMode; sig: TrackedSignal }> = [];
+  for (const m of SCANNER_MODES) {
+    for (const s of crossSignals[m].signals) {
+      if (s.persistent) allLocked.push({ mode: m, sig: s });
+    }
+  }
+  const lockedKey = allLocked
+    .map((l) => `${l.mode}:${l.sig.symbol}:${l.sig.direction}`)
+    .join("|");
   useEffect(() => {
     const notified = notifiedRef.current;
-    const activeKeys = new Set(tracked.map((t) => t.symbol));
+    const activeKeys = new Set(allLocked.map((l) => `${l.mode}:${l.sig.symbol}`));
     for (const k of Array.from(notified.keys())) {
       if (!activeKeys.has(k)) notified.delete(k);
     }
-    for (const t of locked) {
-      const prev = notified.get(t.symbol);
-      if (prev === t.direction) continue;
-      notified.set(t.symbol, t.direction);
-      const meta = SCAN_SYMBOLS.find((s) => s.code === t.symbol);
-      const title = `${meta?.label ?? t.symbol} — Trade ${t.direction}`;
-      const body = `Locked signal · ${t.strength.toFixed(1)}% strength · ${t.tickCount} ticks`;
+    for (const { mode: m, sig } of allLocked) {
+      // Skip cross-scanner alerts entirely when the user disabled them
+      // (active-scanner alerts are always on).
+      if (m !== mode && !crossAlerts) continue;
+      const k = `${m}:${sig.symbol}`;
+      if (notified.get(k) === sig.direction) continue;
+      notified.set(k, sig.direction);
+      const meta = SCAN_SYMBOLS.find((s) => s.code === sig.symbol);
+      const scannerLabel = SCANNERS[m].label;
+      const title = `[${scannerLabel}] ${meta?.label ?? sig.symbol} — Trade ${sig.direction}`;
+      const body = `Locked · ${sig.strength.toFixed(1)}% strength · ${sig.tickCount} ticks`;
       if (notify === "granted" && typeof window !== "undefined" && "Notification" in window) {
         try {
-          const n = new Notification(title, { body, tag: `digitpulse-${t.symbol}` });
+          const n = new Notification(title, { body, tag: `digitpulse-${m}-${sig.symbol}` });
           n.onclick = () => {
             window.focus();
+            setMode(m);
             n.close();
           };
         } catch {
@@ -243,7 +348,7 @@ function ScannerPage() {
       if (sound) beep();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lockedKey, notify, sound]);
+  }, [lockedKey, notify, sound, crossAlerts]);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -252,7 +357,7 @@ function ScannerPage() {
         <section className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h2 className="font-mono text-2xl font-bold tracking-tight sm:text-3xl">
-              Even / Odd Scanner
+              {activeScanner.label} Scanner
             </h2>
             <p className="text-sm text-muted-foreground">
               Monitoring all {SCAN_SYMBOLS.length} 1s volatility markets.{" "}
@@ -281,26 +386,45 @@ function ScannerPage() {
           </div>
         </section>
 
+        {/* ─── Scanner mode tabs ─── */}
         <section className="rounded-lg border border-border bg-card p-2">
           <div className="mb-1.5 px-1 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-            Strategy
+            Scanner
           </div>
-          <div className="flex flex-wrap gap-1">
-            {(Object.keys(STRATEGIES) as ScannerStrategy[]).map((k) => {
-              const active = strategy === k;
+          <div className="grid gap-1 sm:grid-cols-2 lg:grid-cols-4">
+            {SCANNER_MODES.map((m) => {
+              const info = SCANNERS[m];
+              const active = m === mode;
+              const cs = crossSignals[m];
+              const totalCount = cs.locked + cs.fresh;
               return (
                 <button
-                  key={k}
-                  onClick={() => setStrategy(k)}
+                  key={m}
+                  onClick={() => setMode(m)}
                   className={cn(
-                    "flex-1 min-w-[200px] rounded-md px-3 py-2 text-left transition-colors",
+                    "relative rounded-md px-3 py-2 text-left transition-colors",
                     active
                       ? "bg-primary text-primary-foreground shadow-[var(--shadow-glow)]"
                       : "text-muted-foreground hover:bg-secondary/40 hover:text-foreground",
                   )}
                 >
-                  <div className="font-mono text-xs font-bold uppercase tracking-wider">
-                    {STRATEGIES[k].label}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="font-mono text-xs font-bold uppercase tracking-wider">
+                      {info.label}
+                    </div>
+                    {totalCount > 0 && (
+                      <span
+                        className={cn(
+                          "rounded-full px-1.5 py-0.5 font-mono text-[10px] font-bold tabular-nums",
+                          cs.locked > 0
+                            ? "bg-[var(--rank-most)] text-background"
+                            : "bg-[var(--rank-second)] text-background",
+                        )}
+                        title={`${cs.locked} locked · ${cs.fresh} fresh`}
+                      >
+                        {cs.locked > 0 ? `● ${cs.locked}` : cs.fresh}
+                      </span>
+                    )}
                   </div>
                   <div
                     className={cn(
@@ -308,7 +432,7 @@ function ScannerPage() {
                       active ? "text-primary-foreground/80" : "text-muted-foreground",
                     )}
                   >
-                    {STRATEGIES[k].sub}
+                    {info.sub}
                   </div>
                 </button>
               );
@@ -316,6 +440,50 @@ function ScannerPage() {
           </div>
         </section>
 
+        {/* ─── Sub-strategy selector (Even/Odd only) ─── */}
+        {activeScanner.hasStrategies && (
+          <section className="rounded-lg border border-border bg-card p-2">
+            <div className="mb-1.5 px-1 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+              Strategy
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {(Object.keys(STRATEGIES) as EvenOddStrategy[]).map((k) => {
+                const active = strategy === k;
+                return (
+                  <button
+                    key={k}
+                    onClick={() => setStrategy(k)}
+                    className={cn(
+                      "flex-1 min-w-[200px] rounded-md px-3 py-2 text-left transition-colors",
+                      active
+                        ? "bg-primary text-primary-foreground shadow-[var(--shadow-glow)]"
+                        : "text-muted-foreground hover:bg-secondary/40 hover:text-foreground",
+                    )}
+                  >
+                    <div className="font-mono text-xs font-bold uppercase tracking-wider">
+                      {STRATEGIES[k].label}
+                    </div>
+                    <div
+                      className={cn(
+                        "mt-0.5 font-mono text-[10px]",
+                        active ? "text-primary-foreground/80" : "text-muted-foreground",
+                      )}
+                    >
+                      {STRATEGIES[k].sub}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* ─── Cross-scanner banner: locked signals on OTHER scanners ─── */}
+        <CrossScannerBanner
+          mode={mode}
+          crossSignals={crossSignals}
+          onJump={setMode}
+        />
 
         <section className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card/50 px-3 py-2 text-xs">
           <span className="font-mono uppercase tracking-[0.18em] text-muted-foreground">
@@ -350,17 +518,42 @@ function ScannerPage() {
           >
             Sound {sound ? "ON" : "OFF"}
           </button>
+          <button
+            onClick={() => setCrossAlerts((s) => !s)}
+            className={cn(
+              "rounded-md border px-2 py-1 font-mono",
+              crossAlerts
+                ? "border-[var(--rank-most)] text-[var(--rank-most)]"
+                : "border-border text-muted-foreground",
+            )}
+            title="Notify when locked signals appear on OTHER scanners while you're on this one"
+          >
+            Cross-scanner alerts {crossAlerts ? "ON" : "OFF"}
+          </button>
           <span className="ml-auto text-[11px] text-muted-foreground">
             Fires once when a signal locks (≥{PERSIST_MS / 1000}s).
           </span>
         </section>
 
-
         <section className="grid gap-3 sm:grid-cols-4">
           <StatCard label="Locked ≥5s" value={locked.length} tone="most" />
           <StatCard label="Fresh signals" value={fresh.length} tone="second" />
-          <StatCard label="Even" value={evenCount} tone="most" />
-          <StatCard label="Odd" value={oddCount} tone="second" />
+          {mode === "even-odd" ? (
+            <>
+              <StatCard label="Even" value={evenCount} tone="most" />
+              <StatCard label="Odd" value={oddCount} tone="second" />
+            </>
+          ) : (
+            <>
+              <StatCard label="Valid markets" value={tracked.length} tone="most" />
+              <StatCard
+                label="Avg strength"
+                value={Number(avgStrength.toFixed(1))}
+                tone="second"
+                suffix="%"
+              />
+            </>
+          )}
         </section>
 
         {locked.length > 0 && (
@@ -404,11 +597,10 @@ function ScannerPage() {
           <div className="rounded-xl border border-dashed border-border bg-card/50 p-10 text-center">
             <div className="mx-auto mb-3 h-8 w-8 rounded-full border-2 border-muted-foreground/50" />
             <h3 className="font-mono text-sm font-semibold">
-              No valid Even/Odd signals detected
+              No valid {activeScanner.label} signals detected
             </h3>
             <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">
-              Waiting for green + red ranks to align on the same parity while
-              blue + yellow align on the opposite.
+              {activeScanner.sub}.
             </p>
           </div>
         )}
@@ -450,14 +642,86 @@ function ScannerPage() {
   );
 }
 
+function CrossScannerBanner({
+  mode,
+  crossSignals,
+  onJump,
+}: {
+  mode: ScannerMode;
+  crossSignals: Record<
+    ScannerMode,
+    { locked: number; fresh: number; signals: TrackedSignal[] }
+  >;
+  onJump: (m: ScannerMode) => void;
+}) {
+  const others = SCANNER_MODES.filter((m) => m !== mode);
+  const anyLocked = others.some((m) => crossSignals[m].locked > 0);
+  const anyFresh = others.some((m) => crossSignals[m].fresh > 0);
+  if (!anyLocked && !anyFresh) return null;
+  return (
+    <section
+      className={cn(
+        "rounded-lg border bg-card/60 px-3 py-2",
+        anyLocked
+          ? "border-[var(--rank-most)]/60 shadow-[0_0_24px_-12px_var(--rank-most)]"
+          : "border-border",
+      )}
+    >
+      <div className="mb-1.5 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+        <span
+          className={cn(
+            "h-1.5 w-1.5 rounded-full",
+            anyLocked ? "bg-[var(--rank-most)] animate-pulse" : "bg-[var(--rank-second)]",
+          )}
+        />
+        Other scanners
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {others.map((m) => {
+          const info = SCANNERS[m];
+          const cs = crossSignals[m];
+          const isHot = cs.locked > 0;
+          const isWarm = cs.fresh > 0;
+          return (
+            <button
+              key={m}
+              onClick={() => onJump(m)}
+              className={cn(
+                "flex items-center gap-2 rounded-md border px-2.5 py-1 font-mono text-[11px] transition-colors",
+                isHot
+                  ? "border-[var(--rank-most)] bg-[var(--rank-most)]/10 text-[var(--rank-most)]"
+                  : isWarm
+                  ? "border-[var(--rank-second)]/60 bg-[var(--rank-second)]/10 text-[var(--rank-second)]"
+                  : "border-border text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <span className="font-bold uppercase tracking-wider">
+                {info.label}
+              </span>
+              <span className="tabular-nums">
+                {cs.locked > 0 && <>● {cs.locked} locked</>}
+                {cs.locked > 0 && cs.fresh > 0 && " · "}
+                {cs.fresh > 0 && <>{cs.fresh} fresh</>}
+                {cs.locked === 0 && cs.fresh === 0 && "—"}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function StatCard({
   label,
   value,
   tone,
+  suffix,
 }: {
   label: string;
   value: number;
   tone: "most" | "second";
+  suffix?: string;
 }) {
   const color =
     tone === "most" ? "text-[var(--rank-most)]" : "text-[var(--rank-second)]";
@@ -465,6 +729,9 @@ function StatCard({
     <div className="rounded-xl border border-border bg-card p-4 text-center">
       <div className={cn("font-mono text-3xl font-bold tabular-nums", color)}>
         {value}
+        {suffix && (
+          <span className="ml-0.5 text-base font-semibold">{suffix}</span>
+        )}
       </div>
       <div className="mt-1 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
         {label}
@@ -510,10 +777,7 @@ function SignalRow({
   locked?: boolean;
 }) {
   const meta = SCAN_SYMBOLS.find((s) => s.code === signal.symbol);
-  const dirColor =
-    signal.direction === "EVEN"
-      ? "text-[var(--rank-most)] border-[var(--rank-most)]"
-      : "text-[var(--rank-second)] border-[var(--rank-second)]";
+  const tone = directionTone(signal.direction);
   const held = (signal.heldMs / 1000).toFixed(1);
   const currentDigit =
     signal.lastQuote !== null ? lastDigit(signal.lastQuote, signal.pip) : null;
@@ -535,15 +799,21 @@ function SignalRow({
     ? rankToneMap[currentStat.rank]
     : "border-border text-muted-foreground";
 
-
-  // Strength bar — strength is share of ticks landing on tradable parity (50–100 scale).
+  // Strength meter — for even/odd, anchored at 50%. For barriers, the
+  // tradable side already covers most digits so strength is naturally high.
   const strengthPct = Math.max(0, Math.min(100, signal.strength));
-  const strengthTone =
-    strengthPct >= 58
+  const isEvenOdd = signal.mode === "even-odd";
+  const strengthTone = isEvenOdd
+    ? strengthPct >= 58
       ? "bg-[var(--rank-most)]"
       : strengthPct >= 53
       ? "bg-[var(--rank-second)]"
-      : "bg-[var(--rank-second-least)]";
+      : "bg-[var(--rank-second-least)]"
+    : strengthPct >= 80
+    ? "bg-[var(--rank-most)]"
+    : strengthPct >= 70
+    ? "bg-[var(--rank-second)]"
+    : "bg-[var(--rank-second-least)]";
 
   return (
     <div
@@ -555,7 +825,6 @@ function SignalRow({
       )}
     >
       <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
-        {/* LEFT: market info + digits */}
         <div className="min-w-0">
           <div className="flex items-center gap-3">
             <span
@@ -579,7 +848,12 @@ function SignalRow({
           </div>
 
           <div className="mt-4">
-            <ParityStrip digits={last20} highlight={signal.direction} />
+            <PatternStrip
+              digits={last20}
+              winningDigits={signal.winningDigits}
+              mode={signal.mode}
+              direction={signal.direction}
+            />
           </div>
 
           <div
@@ -590,16 +864,25 @@ function SignalRow({
                 : "border-[var(--rank-second)]",
             )}
           >
-            Green ({signal.greenDigit}) + Red ({signal.redDigit}) on{" "}
-            <span className="font-semibold">{signal.direction}</span> · Blue (
-            {signal.blueDigit}) + Yellow ({signal.yellowDigit}) on{" "}
-            <span className="font-semibold">
-              {signal.direction === "EVEN" ? "ODD" : "EVEN"}
-            </span>
+            {isEvenOdd ? (
+              <>
+                Green ({signal.greenDigit}) + Red ({signal.redDigit}) on{" "}
+                <span className="font-semibold">{signal.direction}</span> · Blue
+                ({signal.blueDigit}) + Yellow ({signal.yellowDigit}) on{" "}
+                <span className="font-semibold">
+                  {signal.direction === "EVEN" ? "ODD" : "EVEN"}
+                </span>
+              </>
+            ) : (
+              <>
+                Green ({signal.greenDigit}) on{" "}
+                <span className="font-semibold">{signal.direction}</span> · Red
+                ({signal.redDigit}) · losing-side digits all below 10%
+              </>
+            )}
           </div>
         </div>
 
-        {/* RIGHT: live last-digit entry-point panel */}
         <div className="flex w-full flex-col items-center gap-2 border-t border-border pt-3 sm:w-44 sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0">
           <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
             Last digit
@@ -618,12 +901,12 @@ function SignalRow({
           <div
             className={cn(
               "mt-1 inline-flex items-center gap-2 rounded-md border px-3 py-1 font-mono text-xs font-bold uppercase",
-              dirColor,
+              tone.text,
+              tone.border,
             )}
           >
             Trade {signal.direction}
           </div>
-          {/* Strength meter */}
           <div className="w-full">
             <div className="flex items-baseline justify-between font-mono text-[10px] text-muted-foreground">
               <span>Strength</span>
@@ -633,7 +916,7 @@ function SignalRow({
             </div>
             <div
               className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted"
-              title={`${strengthPct.toFixed(1)}% of the last ${signal.tickCount} ticks landed on a ${signal.direction.toLowerCase()} digit. Baseline 50% — higher means stronger bias.`}
+              title={`${strengthPct.toFixed(1)}% of the last ${signal.tickCount} ticks landed on the ${signal.direction} side.`}
             >
               <div
                 className={cn("h-full transition-all", strengthTone)}
@@ -647,59 +930,63 @@ function SignalRow({
   );
 }
 
-function ParityStrip({
+function PatternStrip({
   digits,
-  highlight,
+  winningDigits,
+  mode,
+  direction,
 }: {
   digits: number[];
-  highlight?: "EVEN" | "ODD";
+  winningDigits: number[];
+  mode: ScannerMode;
+  direction: string;
 }) {
   if (digits.length === 0) return null;
-  const evenCount = digits.filter((d) => d % 2 === 0).length;
-  const oddCount = digits.length - evenCount;
-  const evenPct = (evenCount / digits.length) * 100;
-  const oddPct = 100 - evenPct;
+  const winSet = new Set(winningDigits);
+  const wins = digits.filter((d) => winSet.has(d)).length;
+  const losses = digits.length - wins;
+  const winPct = (wins / digits.length) * 100;
+  const lossPct = 100 - winPct;
+  const isEvenOdd = mode === "even-odd";
+
   return (
     <div className="rounded-lg border border-border/60 bg-background/30 p-2.5">
       <div className="mb-1.5 flex items-center justify-between">
         <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-          Even/Odd pattern (last {digits.length})
+          {isEvenOdd ? "Even/Odd" : direction} pattern (last {digits.length})
         </span>
       </div>
       <div className="flex flex-wrap gap-1">
         {digits.map((d, i) => {
-          const isEven = d % 2 === 0;
-          const isHi =
-            (highlight === "EVEN" && isEven) ||
-            (highlight === "ODD" && !isEven);
+          const isWin = winSet.has(d);
+          const display = isEvenOdd ? (d % 2 === 0 ? "E" : "O") : String(d);
           return (
             <span
               key={i}
               className={cn(
                 "flex h-6 w-6 items-center justify-center rounded-md border font-mono text-[11px] font-bold",
-                isEven
+                isWin
                   ? "border-[var(--rank-most)]/50 bg-[var(--rank-most)]/10 text-[var(--rank-most)]"
                   : "border-[var(--rank-least)]/50 bg-[var(--rank-least)]/10 text-[var(--rank-least)]",
-                isHi && "ring-1 ring-current",
               )}
               title={`digit ${d}`}
             >
-              {isEven ? "E" : "O"}
+              {display}
             </span>
           );
         })}
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-3 font-mono text-[11px]">
         <span className="text-muted-foreground">
-          Even:{" "}
+          {isEvenOdd ? "Even" : "Win"}:{" "}
           <span className="font-bold text-[var(--rank-most)] tabular-nums">
-            {evenPct.toFixed(1)}%
+            {winPct.toFixed(1)}%
           </span>
         </span>
         <span className="text-muted-foreground">
-          Odd:{" "}
+          {isEvenOdd ? "Odd" : "Loss"}:{" "}
           <span className="font-bold text-[var(--rank-least)] tabular-nums">
-            {oddPct.toFixed(1)}%
+            {lossPct.toFixed(1)}%
           </span>
         </span>
         <span className="text-muted-foreground">
@@ -769,23 +1056,14 @@ function HistoryList({ events }: { events: HistoryEvent[] }) {
         {events.map((e, i) => {
           const time = new Date(e.ts).toLocaleTimeString();
           const isSignal = e.type === "signal";
-          const dotColor = !isSignal
-            ? "bg-muted-foreground/40"
-            : e.direction === "EVEN"
-            ? "bg-[var(--rank-most)]"
-            : "bg-[var(--rank-second)]";
-          const badge =
-            !isSignal
-              ? { text: "cleared", cls: "border-border text-muted-foreground" }
-              : e.direction === "EVEN"
-              ? {
-                  text: `EVEN · ${e.strength?.toFixed(0) ?? "—"}%`,
-                  cls: "border-[var(--rank-most)]/60 text-[var(--rank-most)] bg-[var(--rank-most)]/10",
-                }
-              : {
-                  text: `ODD · ${e.strength?.toFixed(0) ?? "—"}%`,
-                  cls: "border-[var(--rank-second)]/60 text-[var(--rank-second)] bg-[var(--rank-second)]/10",
-                };
+          const tone = e.direction ? directionTone(e.direction) : null;
+          const dotColor = !isSignal || !tone ? "bg-muted-foreground/40" : tone.bg;
+          const badge = !isSignal
+            ? { text: "cleared", cls: "border-border text-muted-foreground" }
+            : {
+                text: `${e.direction} · ${e.strength?.toFixed(0) ?? "—"}%`,
+                cls: cn(tone?.border, tone?.text, "bg-card/60"),
+              };
           return (
             <li
               key={`${e.ts}-${e.symbol}-${i}`}
