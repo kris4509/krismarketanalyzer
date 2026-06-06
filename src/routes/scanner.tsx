@@ -249,30 +249,67 @@ function ScannerPage() {
               Even / Odd Scanner
             </h2>
             <p className="text-sm text-muted-foreground">
-              Monitoring all {SCAN_SYMBOLS.length} 1s volatility markets for
-              valid parity alignment.{" "}
+              Monitoring all {SCAN_SYMBOLS.length} 1s volatility markets.{" "}
               <span className="text-foreground/70">
                 {state === "open" ? "Live feed connected." : `Status: ${state}`}
               </span>
             </p>
           </div>
-          <div className="flex gap-1 rounded-lg border border-border bg-card p-1">
-            {TICK_COUNT_OPTIONS.map((n) => (
-              <button
-                key={n}
-                onClick={() => setCount(n)}
-                className={cn(
-                  "rounded-md px-3 py-1.5 font-mono text-xs transition-colors",
-                  count === n
-                    ? "bg-secondary text-foreground"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {n}
-              </button>
-            ))}
+          <div className="flex flex-wrap gap-3">
+            <div className="flex gap-1 rounded-lg border border-border bg-card p-1">
+              {TICK_COUNT_OPTIONS.map((n) => (
+                <button
+                  key={n}
+                  onClick={() => setCount(n)}
+                  className={cn(
+                    "rounded-md px-3 py-1.5 font-mono text-xs transition-colors",
+                    count === n
+                      ? "bg-secondary text-foreground"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
           </div>
         </section>
+
+        <section className="rounded-lg border border-border bg-card p-2">
+          <div className="mb-1.5 px-1 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+            Strategy
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {(Object.keys(STRATEGIES) as ScannerStrategy[]).map((k) => {
+              const active = strategy === k;
+              return (
+                <button
+                  key={k}
+                  onClick={() => setStrategy(k)}
+                  className={cn(
+                    "flex-1 min-w-[200px] rounded-md px-3 py-2 text-left transition-colors",
+                    active
+                      ? "bg-primary text-primary-foreground shadow-[var(--shadow-glow)]"
+                      : "text-muted-foreground hover:bg-secondary/40 hover:text-foreground",
+                  )}
+                >
+                  <div className="font-mono text-xs font-bold uppercase tracking-wider">
+                    {STRATEGIES[k].label}
+                  </div>
+                  <div
+                    className={cn(
+                      "mt-0.5 font-mono text-[10px]",
+                      active ? "text-primary-foreground/80" : "text-muted-foreground",
+                    )}
+                  >
+                    {STRATEGIES[k].sub}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
 
         <section className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card/50 px-3 py-2 text-xs">
           <span className="font-mono uppercase tracking-[0.18em] text-muted-foreground">
