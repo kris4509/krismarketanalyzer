@@ -50,7 +50,10 @@ export const Route = createFileRoute("/scanner")({
 
 function ScannerPage() {
   const [count, setCount] = useState(DEFAULT_TICK_COUNT);
+  const [strategy, setStrategy] = useState<ScannerStrategy>("rank-alignment");
+  const detect = STRATEGIES[strategy].detect;
   const { feeds, state } = useMultiDerivTicks(SCAN_CODES, count);
+
   const trackerRef = useRef<
     Map<string, { direction: "EVEN" | "ODD"; firstSeen: number }>
   >(new Map());
