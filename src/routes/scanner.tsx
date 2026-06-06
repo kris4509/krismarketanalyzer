@@ -511,15 +511,24 @@ function SignalRow({
   const held = (signal.heldMs / 1000).toFixed(1);
   const currentDigit =
     signal.lastQuote !== null ? lastDigit(signal.lastQuote, signal.pip) : null;
-  const matchesDirection =
-    currentDigit !== null &&
-    (signal.direction === "EVEN" ? currentDigit % 2 === 0 : currentDigit % 2 === 1);
-  const lastDigitTone =
-    currentDigit === null
-      ? "border-border text-muted-foreground"
-      : matchesDirection
-      ? "border-[var(--rank-most)] text-[var(--rank-most)] shadow-[0_0_28px_-4px_var(--rank-most)]"
-      : "border-[var(--rank-least)] text-[var(--rank-least)] shadow-[0_0_24px_-6px_var(--rank-least)]";
+  const currentStat =
+    currentDigit !== null
+      ? signal.stats.find((s) => s.digit === currentDigit)
+      : null;
+  const rankToneMap: Record<DigitStat["rank"], string> = {
+    most: "border-[var(--rank-most)] text-[var(--rank-most)] shadow-[0_0_28px_-4px_var(--rank-most)]",
+    second:
+      "border-[var(--rank-second)] text-[var(--rank-second)] shadow-[0_0_24px_-6px_var(--rank-second)]",
+    "second-least":
+      "border-[var(--rank-second-least)] text-[var(--rank-second-least)] shadow-[0_0_22px_-8px_var(--rank-second-least)]",
+    least:
+      "border-[var(--rank-least)] text-[var(--rank-least)] shadow-[0_0_24px_-6px_var(--rank-least)]",
+    mid: "border-border text-foreground",
+  };
+  const lastDigitTone = currentStat
+    ? rankToneMap[currentStat.rank]
+    : "border-border text-muted-foreground";
+
 
   // Strength bar — strength is share of ticks landing on tradable parity (50–100 scale).
   const strengthPct = Math.max(0, Math.min(100, signal.strength));
