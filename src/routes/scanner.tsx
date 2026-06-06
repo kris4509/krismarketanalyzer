@@ -153,7 +153,8 @@ function ScannerPage() {
     }
     return { tracked, raw, last20Map };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [feeds]);
+  }, [feeds, strategy]);
+
 
   const locked = tracked.filter((t) => t.persistent);
   const fresh = tracked.filter((t) => !t.persistent);
