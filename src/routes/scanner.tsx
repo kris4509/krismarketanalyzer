@@ -3,11 +3,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AppHeader } from "@/components/analysis/AppHeader";
 import { cn } from "@/lib/utils";
 import {
-  detectEvenOddSignal,
   PERSIST_MS,
+  STRATEGIES,
   type EvenOddSignal,
+  type ScannerStrategy,
   type TrackedSignal,
 } from "@/lib/deriv/scanner";
+
 import {
   DERIV_SYMBOLS,
   DEFAULT_TICK_COUNT,
@@ -48,7 +50,10 @@ export const Route = createFileRoute("/scanner")({
 
 function ScannerPage() {
   const [count, setCount] = useState(DEFAULT_TICK_COUNT);
+  const [strategy, setStrategy] = useState<ScannerStrategy>("rank-alignment");
+  const detect = STRATEGIES[strategy].detect;
   const { feeds, state } = useMultiDerivTicks(SCAN_CODES, count);
+
   const trackerRef = useRef<
     Map<string, { direction: "EVEN" | "ODD"; firstSeen: number }>
   >(new Map());
@@ -118,7 +123,7 @@ function ScannerPage() {
       const feed = feeds[meta.code];
       const pip = feed?.pip ?? meta.pip;
       const ticks = feed?.ticks ?? [];
-      const signal = detectEvenOddSignal(meta.code, ticks, pip);
+      const signal = detect(meta.code, ticks, pip);
       const lastQuote = ticks[ticks.length - 1]?.quote ?? null;
       const stats = ticks.length >= 20 ? computeDigitStats(ticks, pip) : null;
       const last20 = ticks.slice(-20).map((t) => lastDigit(t.quote, pip));
@@ -148,7 +153,8 @@ function ScannerPage() {
     }
     return { tracked, raw, last20Map };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [feeds]);
+  }, [feeds, strategy]);
+
 
   const locked = tracked.filter((t) => t.persistent);
   const fresh = tracked.filter((t) => !t.persistent);
@@ -243,30 +249,67 @@ function ScannerPage() {
               Even / Odd Scanner
             </h2>
             <p className="text-sm text-muted-foreground">
-              Monitoring all {SCAN_SYMBOLS.length} 1s volatility markets for
-              valid parity alignment.{" "}
+              Monitoring all {SCAN_SYMBOLS.length} 1s volatility markets.{" "}
               <span className="text-foreground/70">
                 {state === "open" ? "Live feed connected." : `Status: ${state}`}
               </span>
             </p>
           </div>
-          <div className="flex gap-1 rounded-lg border border-border bg-card p-1">
-            {TICK_COUNT_OPTIONS.map((n) => (
-              <button
-                key={n}
-                onClick={() => setCount(n)}
-                className={cn(
-                  "rounded-md px-3 py-1.5 font-mono text-xs transition-colors",
-                  count === n
-                    ? "bg-secondary text-foreground"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {n}
-              </button>
-            ))}
+          <div className="flex flex-wrap gap-3">
+            <div className="flex gap-1 rounded-lg border border-border bg-card p-1">
+              {TICK_COUNT_OPTIONS.map((n) => (
+                <button
+                  key={n}
+                  onClick={() => setCount(n)}
+                  className={cn(
+                    "rounded-md px-3 py-1.5 font-mono text-xs transition-colors",
+                    count === n
+                      ? "bg-secondary text-foreground"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
           </div>
         </section>
+
+        <section className="rounded-lg border border-border bg-card p-2">
+          <div className="mb-1.5 px-1 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+            Strategy
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {(Object.keys(STRATEGIES) as ScannerStrategy[]).map((k) => {
+              const active = strategy === k;
+              return (
+                <button
+                  key={k}
+                  onClick={() => setStrategy(k)}
+                  className={cn(
+                    "flex-1 min-w-[200px] rounded-md px-3 py-2 text-left transition-colors",
+                    active
+                      ? "bg-primary text-primary-foreground shadow-[var(--shadow-glow)]"
+                      : "text-muted-foreground hover:bg-secondary/40 hover:text-foreground",
+                  )}
+                >
+                  <div className="font-mono text-xs font-bold uppercase tracking-wider">
+                    {STRATEGIES[k].label}
+                  </div>
+                  <div
+                    className={cn(
+                      "mt-0.5 font-mono text-[10px]",
+                      active ? "text-primary-foreground/80" : "text-muted-foreground",
+                    )}
+                  >
+                    {STRATEGIES[k].sub}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
 
         <section className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card/50 px-3 py-2 text-xs">
           <span className="font-mono uppercase tracking-[0.18em] text-muted-foreground">
@@ -468,15 +511,24 @@ function SignalRow({
   const held = (signal.heldMs / 1000).toFixed(1);
   const currentDigit =
     signal.lastQuote !== null ? lastDigit(signal.lastQuote, signal.pip) : null;
-  const matchesDirection =
-    currentDigit !== null &&
-    (signal.direction === "EVEN" ? currentDigit % 2 === 0 : currentDigit % 2 === 1);
-  const lastDigitTone =
-    currentDigit === null
-      ? "border-border text-muted-foreground"
-      : matchesDirection
-      ? "border-[var(--rank-most)] text-[var(--rank-most)] shadow-[0_0_28px_-4px_var(--rank-most)]"
-      : "border-[var(--rank-least)] text-[var(--rank-least)] shadow-[0_0_24px_-6px_var(--rank-least)]";
+  const currentStat =
+    currentDigit !== null
+      ? signal.stats.find((s) => s.digit === currentDigit)
+      : null;
+  const rankToneMap: Record<DigitStat["rank"], string> = {
+    most: "border-[var(--rank-most)] text-[var(--rank-most)] shadow-[0_0_28px_-4px_var(--rank-most)]",
+    second:
+      "border-[var(--rank-second)] text-[var(--rank-second)] shadow-[0_0_24px_-6px_var(--rank-second)]",
+    "second-least":
+      "border-[var(--rank-second-least)] text-[var(--rank-second-least)] shadow-[0_0_22px_-8px_var(--rank-second-least)]",
+    least:
+      "border-[var(--rank-least)] text-[var(--rank-least)] shadow-[0_0_24px_-6px_var(--rank-least)]",
+    mid: "border-border text-foreground",
+  };
+  const lastDigitTone = currentStat
+    ? rankToneMap[currentStat.rank]
+    : "border-border text-muted-foreground";
+
 
   // Strength bar — strength is share of ticks landing on tradable parity (50–100 scale).
   const strengthPct = Math.max(0, Math.min(100, signal.strength));
