@@ -107,7 +107,6 @@ export function detectEvenOddSignalThreshold(
   const yellow = stats.find((s) => s.rank === "second-least");
   if (!green || !red || !blue || !yellow) return null;
 
-  if (green.percent <= 11) return null;
   const greenParity = green.digit % 2;
   const redParity = red.digit % 2;
   if (greenParity === redParity) return null; // need opposite
@@ -116,7 +115,14 @@ export function detectEvenOddSignalThreshold(
   const parityValue = direction === "EVEN" ? 0 : 1;
   const sameParity = stats.filter((s) => s.digit % 2 === parityValue);
   const aboveTen = sameParity.filter((s) => s.percent > 10).length;
-  if (aboveTen < 4) return null;
+  const aboveTenFive = sameParity.filter((s) => s.percent > 10.5).length;
+
+  // Rule A: green > 11% AND ≥4 same-parity digits > 10%
+  const ruleA = green.percent > 11 && aboveTen >= 4;
+  // Rule B (looser): green > 12% AND ≥3 same-parity digits > 10.5%
+  const ruleB = green.percent > 12 && aboveTenFive >= 3;
+  if (!ruleA && !ruleB) return null;
+
 
   const strength = sameParity.reduce((a, s) => a + s.percent, 0);
   const oppositeStrength = 100 - strength;
@@ -150,9 +156,10 @@ export const STRATEGIES: Record<
     detect: detectEvenOddSignal,
   },
   threshold: {
-    label: "Threshold (4 × >10%)",
-    sub: "Green >11% · Green/Red opposite parity · ≥4 same-parity digits >10%",
+    label: "Threshold",
+    sub: "Green/Red opposite parity · (≥4 same-parity >10% & green >11%) OR (≥3 same-parity >10.5% & green >12%)",
     detect: detectEvenOddSignalThreshold,
   },
+
 };
 
