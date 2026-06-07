@@ -5,7 +5,8 @@ export function AppHeader({ live }: { live?: boolean }) {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const tabs = [
     { to: "/", label: "Analyzer" },
-    { to: "/scanner", label: "Even/Odd Scanner" },
+    { to: "/scanner", label: "Scanner" },
+    { to: "/bots", label: "Bots" },
   ] as const;
   return (
     <header className="border-b border-border">
@@ -28,7 +29,7 @@ export function AppHeader({ live }: { live?: boolean }) {
         </div>
         <nav className="flex gap-1 rounded-lg border border-border bg-card p-1">
           {tabs.map((t) => {
-            const active = path === t.to;
+            const active = path === t.to || (t.to === "/bots" && path.startsWith("/bots"));
             return (
               <Link
                 key={t.to}
