@@ -1,6 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 function normalizePhone(p: string): string {
   const digits = p.replace(/\D/g, "");
@@ -22,14 +21,13 @@ async function getMpesaToken(env: string, key: string, secret: string): Promise<
 }
 
 export const initiateMpesaPayment = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
   .inputValidator((d: { bot_id: string; phone: string }) =>
     z.object({
       bot_id: z.string().uuid(),
       phone: z.string().min(9).max(15),
     }).parse(d),
   )
-  .handler(async ({ context, data }) => {
+  .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const { data: bot, error: bErr } = await supabaseAdmin
@@ -49,7 +47,6 @@ export const initiateMpesaPayment = createServerFn({ method: "POST" })
     const ts = new Date().toISOString().replace(/[-T:.Z]/g, "").slice(0, 14);
     const password = Buffer.from(`${shortcode}${passkey}${ts}`).toString("base64");
 
-    // Build absolute callback URL from request host
     const { getRequestHeader } = await import("@tanstack/react-start/server");
     const host = getRequestHeader("host") || "krismarketanalyzer.lovable.app";
     const proto = host.includes("localhost") ? "http" : "https";
@@ -87,7 +84,7 @@ export const initiateMpesaPayment = createServerFn({ method: "POST" })
 
     const { data: purchase, error: pErr } = await supabaseAdmin
       .from("purchases").insert({
-        user_id: context.userId,
+        user_id: null,
         bot_id: bot.id,
         amount,
         phone,
@@ -101,13 +98,13 @@ export const initiateMpesaPayment = createServerFn({ method: "POST" })
   });
 
 export const getPurchaseStatus = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
   .inputValidator((d: { purchase_id: string }) => z.object({ purchase_id: z.string().uuid() }).parse(d))
-  .handler(async ({ context, data }) => {
-    const { data: row, error } = await context.supabase
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: row, error } = await supabaseAdmin
       .from("purchases")
       .select("id,status,result_desc,mpesa_receipt,bot_id")
-      .eq("id", data.purchase_id).single();
-    if (error) throw new Error(error.message);
+      .eq("id", data.purchase_id).maybeSingle();
+    if (error || !row) throw new Error(error?.message || "Purchase not found");
     return row;
   });
