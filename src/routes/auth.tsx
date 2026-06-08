@@ -19,7 +19,7 @@ function AuthPage() {
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
-      if (data.user) nav({ to: "/bots" });
+      if (data.user) nav({ to: "/admin" });
     });
   }, [nav]);
 
