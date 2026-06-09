@@ -38,19 +38,36 @@ export const initiateMpesaPayment = createServerFn({ method: "POST" })
     if (!/^2547\d{8}$/.test(phone)) throw new Error("Enter a valid Safaricom phone number");
 
     const env = process.env.MPESA_ENV || "sandbox";
-    const key = process.env.MPESA_CONSUMER_KEY!;
-    const secret = process.env.MPESA_CONSUMER_SECRET!;
-    const shortcode = process.env.MPESA_SHORTCODE!;
-    const passkey = process.env.MPESA_PASSKEY!;
+    const key = process.env.MPESA_CONSUMER_KEY;
+    const secret = process.env.MPESA_CONSUMER_SECRET;
+    const shortcode = process.env.MPESA_SHORTCODE;
+    const passkey = process.env.MPESA_PASSKEY;
 
-    const token = await getMpesaToken(env, key, secret);
+    // Fail fast with clear message if credentials are not configured
+    const missing = [
+      !key && "MPESA_CONSUMER_KEY",
+      !secret && "MPESA_CONSUMER_SECRET",
+      !shortcode && "MPESA_SHORTCODE",
+      !passkey && "MPESA_PASSKEY",
+    ].filter(Boolean);
+    if (missing.length) {
+      throw new Error(`M-Pesa not configured. Missing env vars: ${missing.join(", ")}`);
+    }
+
+    const token = await getMpesaToken(env, key!, secret!);
     const ts = new Date().toISOString().replace(/[-T:.Z]/g, "").slice(0, 14);
     const password = Buffer.from(`${shortcode}${passkey}${ts}`).toString("base64");
 
+    // Use MPESA_CALLBACK_URL override if set (e.g. ngrok for local dev),
+    // otherwise derive from the incoming request host (works on Lovable/production).
     const { getRequestHeader } = await import("@tanstack/react-start/server");
-    const host = getRequestHeader("host") || "krismarketanalyzer.lovable.app";
-    const proto = host.includes("localhost") ? "http" : "https";
-    const callbackUrl = `${proto}://${host}/api/public/mpesa/callback`;
+    const callbackUrl =
+      process.env.MPESA_CALLBACK_URL ||
+      (() => {
+        const host = getRequestHeader("host") || "krismarketanalyzer.lovable.app";
+        const proto = host.includes("localhost") ? "http" : "https";
+        return `${proto}://${host}/api/public/mpesa/callback`;
+      })();
 
     const amount = Math.max(1, Math.round(Number(bot.price_kes)));
     const base = env === "live" ? "https://api.safaricom.co.ke" : "https://sandbox.safaricom.co.ke";
