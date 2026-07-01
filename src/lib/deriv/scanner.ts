@@ -1,7 +1,14 @@
 import { computeDigitStats, type DigitStat } from "./analysis";
 import type { Tick } from "./useDerivTicks";
 
-export type ScannerMode = "even-odd" | "under-8" | "under-7" | "over-2";
+export type ScannerMode =
+  | "even-odd"
+  | "under-8"
+  | "under-7"
+  | "under-9"
+  | "over-2"
+  | "over-3"
+  | "over-1";
 
 export type EvenOddSignal = {
   symbol: string;
