@@ -209,6 +209,11 @@ function buildBarrierDetector(opts: {
     const [lo, hi] = opts.greenRange;
     if (green.digit < lo || green.digit > hi) return null;
 
+    if (opts.redRange) {
+      const [rlo, rhi] = opts.redRange;
+      if (red.digit < rlo || red.digit > rhi) return null;
+    }
+
     // every losing digit must be strictly below the threshold
     for (const d of opts.losingDigits) {
       const s = stats.find((x) => x.digit === d);
