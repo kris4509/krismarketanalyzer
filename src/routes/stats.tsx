@@ -79,29 +79,30 @@ function StatsPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <AppHeader
-        connectionState={state}
-        latencyMs={null}
-        rightSlot={
-          <Select value={symbol} onValueChange={setSymbol}>
-            <SelectTrigger className="w-[240px] bg-card font-mono">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {groups.map((g) => (
-                <SelectGroup key={g}>
-                  <SelectLabel>{g}</SelectLabel>
-                  {DERIV_SYMBOLS.filter((s) => s.group === g).map((s) => (
-                    <SelectItem key={s.code} value={s.code} className="font-mono">
-                      {s.label}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              ))}
-            </SelectContent>
-          </Select>
-        }
-      />
+      <AppHeader live={state === "open"} />
+      <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 px-4 pt-4">
+        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+          Market
+        </span>
+        <Select value={symbol} onValueChange={setSymbol}>
+          <SelectTrigger className="w-[260px] bg-card font-mono">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {groups.map((g) => (
+              <SelectGroup key={g}>
+                <SelectLabel>{g}</SelectLabel>
+                {DERIV_SYMBOLS.filter((s) => s.group === g).map((s) => (
+                  <SelectItem key={s.code} value={s.code} className="font-mono">
+                    {s.label}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
 
       <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6">
         {/* Header row */}
