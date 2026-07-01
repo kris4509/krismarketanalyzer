@@ -272,6 +272,34 @@ export const detectOver2 = buildBarrierDetector({
   maxLosingPct: 10,
 });
 
+export const detectOver3 = buildBarrierDetector({
+  mode: "over-3",
+  direction: "OVER 3",
+  greenRange: [5, 9],
+  redRange: [5, 9],
+  losingDigits: [0, 1, 2, 3],
+  winningDigits: range(4, 9),
+  maxLosingPct: 10,
+});
+
+export const detectOver1 = buildBarrierDetector({
+  mode: "over-1",
+  direction: "OVER 1",
+  greenRange: [4, 9],
+  losingDigits: [0, 1],
+  winningDigits: range(2, 9),
+  maxLosingPct: 10,
+});
+
+export const detectUnder9 = buildBarrierDetector({
+  mode: "under-9",
+  direction: "UNDER 9",
+  greenRange: [0, 7],
+  losingDigits: [9],
+  winningDigits: range(0, 8),
+  maxLosingPct: 10,
+});
+
 // ───────────────────────── Scanner registry ─────────────────────────
 
 export type ScannerInfo = {
@@ -299,13 +327,6 @@ export const SCANNERS: Record<ScannerMode, ScannerInfo> = {
     detect: detectUnder8,
     hasStrategies: false,
   },
-  "over-2": {
-    mode: "over-2",
-    label: "Over 2",
-    sub: "Green 5–9 · 0, 1 & 2 below 10%",
-    detect: detectOver2,
-    hasStrategies: false,
-  },
   "under-7": {
     mode: "under-7",
     label: "Under 7",
@@ -313,13 +334,44 @@ export const SCANNERS: Record<ScannerMode, ScannerInfo> = {
     detect: detectUnder7,
     hasStrategies: false,
   },
+  "under-9": {
+    mode: "under-9",
+    label: "Under 9",
+    sub: "Green 0–7 · 9 below 10%",
+    detect: detectUnder9,
+    hasStrategies: false,
+  },
+  "over-1": {
+    mode: "over-1",
+    label: "Over 1",
+    sub: "Green 4–9 · 0 & 1 below 10%",
+    detect: detectOver1,
+    hasStrategies: false,
+  },
+  "over-2": {
+    mode: "over-2",
+    label: "Over 2",
+    sub: "Green 5–9 · 0, 1 & 2 below 10%",
+    detect: detectOver2,
+    hasStrategies: false,
+  },
+  "over-3": {
+    mode: "over-3",
+    label: "Over 3",
+    sub: "Green & Red 5–9 · 0–3 below 10%",
+    detect: detectOver3,
+    hasStrategies: false,
+  },
 };
 
 export const SCANNER_MODES: ScannerMode[] = [
   "even-odd",
   "under-8",
-  "over-2",
   "under-7",
+  "under-9",
+  "over-1",
+  "over-2",
+  "over-3",
 ];
 
 export type TrackedSignal = EvenOddSignal & {
