@@ -29,7 +29,7 @@ export function AppHeader({ live }: { live?: boolean }) {
         </div>
         <nav className="flex gap-1 rounded-lg border border-border bg-card p-1">
           {tabs.map((t) => {
-            const active = path === t.to || (t.to === "/bots" && path.startsWith("/bots"));
+            const active = path === t.to;
             return (
               <Link
                 key={t.to}
