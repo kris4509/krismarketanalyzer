@@ -6,7 +6,7 @@ export function AppHeader({ live }: { live?: boolean }) {
   const tabs = [
     { to: "/", label: "Analyzer" },
     { to: "/scanner", label: "Scanner" },
-    { to: "/bots", label: "Bots" },
+    { to: "/stats", label: "Stats" },
   ] as const;
   return (
     <header className="border-b border-border">
