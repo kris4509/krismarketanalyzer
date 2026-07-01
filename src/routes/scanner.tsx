@@ -189,15 +189,13 @@ function ScannerPage() {
   const crossSignals = useMemo(() => {
     const now = Date.now();
     const tracker = trackerRef.current;
-    const out: Record<
+    const out = {} as Record<
       ScannerMode,
       { locked: number; fresh: number; signals: TrackedSignal[] }
-    > = {
-      "even-odd": { locked: 0, fresh: 0, signals: [] },
-      "under-8": { locked: 0, fresh: 0, signals: [] },
-      "over-2": { locked: 0, fresh: 0, signals: [] },
-      "under-7": { locked: 0, fresh: 0, signals: [] },
-    };
+    >;
+    for (const m of SCANNER_MODES) {
+      out[m] = { locked: 0, fresh: 0, signals: [] };
+    }
     for (const m of SCANNER_MODES) {
       if (m === mode) {
         // reuse the already-computed tracked list for the active mode
