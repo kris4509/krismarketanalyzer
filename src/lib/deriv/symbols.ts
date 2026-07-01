@@ -13,7 +13,6 @@ export const DERIV_SYMBOLS: DerivSymbol[] = [
   { code: "1HZ25V", label: "Volatility 25 (1s) Index", group: "Volatility (1s)", pip: 2 },
   { code: "1HZ50V", label: "Volatility 50 (1s) Index", group: "Volatility (1s)", pip: 2 },
   { code: "1HZ75V", label: "Volatility 75 (1s) Index", group: "Volatility (1s)", pip: 2 },
-  { code: "1HZ90V", label: "Volatility 90 (1s) Index", group: "Volatility (1s)", pip: 3 },
   { code: "1HZ100V", label: "Volatility 100 (1s) Index", group: "Volatility (1s)", pip: 2 },
 
   // Standard volatility (2-second ticks)
