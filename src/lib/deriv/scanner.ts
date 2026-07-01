@@ -192,6 +192,7 @@ function buildBarrierDetector(opts: {
   mode: ScannerMode;
   direction: string;
   greenRange: [number, number]; // inclusive
+  redRange?: [number, number]; // optional constraint on the least-frequent digit
   losingDigits: number[];
   winningDigits: number[];
   maxLosingPct: number; // strict <
