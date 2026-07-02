@@ -90,71 +90,103 @@ export function detectEvenOddSignal(
   };
 }
 
-function buildEvenOddThresholdDetector(opts: {
-  minGreenPct: number;
-  minSamePartyPct: number;
-  minSameParityCount: number;
-}): Detector {
-  return function detect(symbol, ticks, pip) {
-    if (ticks.length < 100) return null;
-    const stats = computeDigitStats(ticks, pip);
-    const green = stats.find((s) => s.rank === "most");
-    const red = stats.find((s) => s.rank === "least");
-    const blue = stats.find((s) => s.rank === "second");
-    const yellow = stats.find((s) => s.rank === "second-least");
-    if (!green || !red || !blue || !yellow) return null;
+/**
+ * Odd Strategy (strict):
+ *   Green & Blue on ODD digits, each ≥ 11%.
+ *   Red & Yellow on EVEN digits, red ≤ 8.6%, yellow ≤ 9.5%.
+ */
+export function detectOddStrict(
+  symbol: string,
+  ticks: Tick[],
+  pip: number,
+): EvenOddSignal | null {
+  if (ticks.length < 100) return null;
+  const stats = computeDigitStats(ticks, pip);
+  const green = stats.find((s) => s.rank === "most");
+  const blue = stats.find((s) => s.rank === "second");
+  const yellow = stats.find((s) => s.rank === "second-least");
+  const red = stats.find((s) => s.rank === "least");
+  if (!green || !blue || !yellow || !red) return null;
 
-    const gp = green.digit % 2;
-    const rp = red.digit % 2;
-    if (gp === rp) return null;
-    if (green.percent <= opts.minGreenPct) return null;
+  if (green.digit % 2 !== 1 || blue.digit % 2 !== 1) return null;
+  if (green.percent < 11 || blue.percent < 11) return null;
+  if (red.digit % 2 !== 0 || yellow.digit % 2 !== 0) return null;
+  if (red.percent > 8.6) return null;
+  if (yellow.percent > 9.5) return null;
 
-    const direction = gp === 0 ? "EVEN" : "ODD";
-    const parityValue = gp as 0 | 1;
-    const sameParity = stats.filter((s) => s.digit % 2 === parityValue);
-    const above = sameParity.filter(
-      (s) => s.percent > opts.minSamePartyPct,
-    ).length;
-    if (above < opts.minSameParityCount) return null;
-
-    const strength = sameParity.reduce((a, s) => a + s.percent, 0);
-    const last = ticks[ticks.length - 1];
-
-    return {
-      symbol,
-      mode: "even-odd",
-      direction,
-      winningDigits: evenOddWinningDigits(parityValue),
-      greenDigit: green.digit,
-      redDigit: red.digit,
-      blueDigit: blue.digit,
-      yellowDigit: yellow.digit,
-      strength,
-      oppositeStrength: 100 - strength,
-      stats,
-      lastQuote: last?.quote ?? null,
-      pip,
-      tickCount: ticks.length,
-    };
+  const winningDigits = evenOddWinningDigits(1);
+  const strength = stats
+    .filter((s) => s.digit % 2 === 1)
+    .reduce((a, s) => a + s.percent, 0);
+  const last = ticks[ticks.length - 1];
+  return {
+    symbol,
+    mode: "even-odd",
+    direction: "ODD",
+    winningDigits,
+    greenDigit: green.digit,
+    redDigit: red.digit,
+    blueDigit: blue.digit,
+    yellowDigit: yellow.digit,
+    strength,
+    oppositeStrength: 100 - strength,
+    stats,
+    lastQuote: last?.quote ?? null,
+    pip,
+    tickCount: ticks.length,
   };
 }
 
-export const detectEvenOddSignalThreshold = buildEvenOddThresholdDetector({
-  minGreenPct: 11,
-  minSamePartyPct: 10,
-  minSameParityCount: 4,
-});
+/**
+ * Even Strategy (strict):
+ *   Green & Blue on EVEN digits, each > 11%.
+ *   Red ≤ 8.6%, Yellow ≤ 9.5% (parity unrestricted).
+ */
+export function detectEvenStrict(
+  symbol: string,
+  ticks: Tick[],
+  pip: number,
+): EvenOddSignal | null {
+  if (ticks.length < 100) return null;
+  const stats = computeDigitStats(ticks, pip);
+  const green = stats.find((s) => s.rank === "most");
+  const blue = stats.find((s) => s.rank === "second");
+  const yellow = stats.find((s) => s.rank === "second-least");
+  const red = stats.find((s) => s.rank === "least");
+  if (!green || !blue || !yellow || !red) return null;
 
-export const detectEvenOddSignalThresholdLoose = buildEvenOddThresholdDetector({
-  minGreenPct: 12,
-  minSamePartyPct: 10.5,
-  minSameParityCount: 3,
-});
+  if (green.digit % 2 !== 0 || blue.digit % 2 !== 0) return null;
+  if (green.percent <= 11 || blue.percent <= 11) return null;
+  if (red.percent > 8.6) return null;
+  if (yellow.percent > 9.5) return null;
+
+  const winningDigits = evenOddWinningDigits(0);
+  const strength = stats
+    .filter((s) => s.digit % 2 === 0)
+    .reduce((a, s) => a + s.percent, 0);
+  const last = ticks[ticks.length - 1];
+  return {
+    symbol,
+    mode: "even-odd",
+    direction: "EVEN",
+    winningDigits,
+    greenDigit: green.digit,
+    redDigit: red.digit,
+    blueDigit: blue.digit,
+    yellowDigit: yellow.digit,
+    strength,
+    oppositeStrength: 100 - strength,
+    stats,
+    lastQuote: last?.quote ?? null,
+    pip,
+    tickCount: ticks.length,
+  };
+}
 
 export type EvenOddStrategy =
   | "rank-alignment"
-  | "threshold"
-  | "threshold-loose";
+  | "odd-strict"
+  | "even-strict";
 
 export const STRATEGIES: Record<
   EvenOddStrategy,
@@ -165,17 +197,18 @@ export const STRATEGIES: Record<
     sub: "Green+Red same parity · Blue+Yellow opposite",
     detect: detectEvenOddSignal,
   },
-  threshold: {
-    label: "Threshold (4 × >10%)",
-    sub: "Green/Red opposite · green >11% · ≥4 same-parity digits >10%",
-    detect: detectEvenOddSignalThreshold,
+  "odd-strict": {
+    label: "Odd Strategy",
+    sub: "G+B on odd ≥11% · R+Y on even · R≤8.6% · Y≤9.5%",
+    detect: detectOddStrict,
   },
-  "threshold-loose": {
-    label: "Threshold Loose (3 × >10.5%)",
-    sub: "Green/Red opposite · green >12% · ≥3 same-parity digits >10.5%",
-    detect: detectEvenOddSignalThresholdLoose,
+  "even-strict": {
+    label: "Even Strategy",
+    sub: "G+B on even >11% · R≤8.6% · Y≤9.5%",
+    detect: detectEvenStrict,
   },
 };
+
 
 // Back-compat alias for the previous name.
 export type ScannerStrategy = EvenOddStrategy;
