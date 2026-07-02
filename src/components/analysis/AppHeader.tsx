@@ -7,6 +7,7 @@ export function AppHeader({ live }: { live?: boolean }) {
     { to: "/", label: "Analyzer" },
     { to: "/scanner", label: "Scanner" },
     { to: "/stats", label: "Stats" },
+    { to: "/guide", label: "Guide" },
   ] as const;
   return (
     <header className="border-b border-border">

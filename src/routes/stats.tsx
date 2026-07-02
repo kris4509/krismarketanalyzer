@@ -187,6 +187,87 @@ function StatsPage() {
           </div>
         </section>
 
+        {/* Digit distribution table — color-coded by rank */}
+        <section className="rounded-xl border border-border bg-card p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="font-mono text-sm font-semibold">
+              Digit Distribution Table
+            </h3>
+            <span className="font-mono text-[11px] text-muted-foreground">
+              Ranked by frequency
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full font-mono text-xs">
+              <thead>
+                <tr className="border-b border-border text-left text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                  <th className="py-2 pr-2">Digit</th>
+                  <th className="px-2">Count</th>
+                  <th className="px-2">%</th>
+                  <th className="px-2">Trend</th>
+                  <th className="px-2">Δ vs 1st half</th>
+                  <th className="py-2 pl-2">Rank</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...stats]
+                  .sort((a, b) => b.percent - a.percent)
+                  .map((s) => {
+                    const color = rankColor(s.rank);
+                    const trendArrow =
+                      s.trend === "up" ? "↑" : s.trend === "down" ? "↓" : "→";
+                    return (
+                      <tr
+                        key={s.digit}
+                        className="border-b border-border/40 last:border-0"
+                      >
+                        <td className="py-2 pr-2">
+                          <span
+                            className="inline-flex h-7 w-7 items-center justify-center rounded-full border-2 font-bold tabular-nums"
+                            style={{ borderColor: color, color }}
+                          >
+                            {s.digit}
+                          </span>
+                        </td>
+                        <td className="px-2 tabular-nums">{s.count}</td>
+                        <td
+                          className="px-2 font-bold tabular-nums"
+                          style={{ color }}
+                        >
+                          {s.percent.toFixed(2)}%
+                        </td>
+                        <td
+                          className="px-2 text-base"
+                          style={{
+                            color:
+                              s.trend === "up"
+                                ? "var(--rank-most)"
+                                : s.trend === "down"
+                                  ? "var(--rank-least)"
+                                  : "hsl(var(--muted-foreground))",
+                          }}
+                        >
+                          {trendArrow}
+                        </td>
+                        <td className="px-2 tabular-nums text-muted-foreground">
+                          {s.trendDelta > 0 ? "+" : ""}
+                          {s.trendDelta.toFixed(2)} pp
+                        </td>
+                        <td
+                          className="py-2 pl-2 uppercase tracking-widest"
+                          style={{ color }}
+                        >
+                          {s.rank}
+                        </td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+
         {/* Even/Odd */}
         <StatBarCard title="EVEN / ODD">
           <StatBar label="Even (0,2,4,6,8)" percent={evenPct} tone="var(--rank-second)" />

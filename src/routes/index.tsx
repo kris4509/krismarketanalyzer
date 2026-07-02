@@ -1,10 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { AppHeader } from "@/components/analysis/AppHeader";
+import { BotPromoBanner } from "@/components/analysis/BotPromoBanner";
 import { Controls } from "@/components/analysis/Controls";
 import { DigitCircles } from "@/components/analysis/DigitCircles";
 import { SignalPanel } from "@/components/analysis/SignalPanel";
 import { TickChart } from "@/components/analysis/TickChart";
+import { ValidSignalsPanel } from "@/components/analysis/ValidSignalsPanel";
 import {
   computeDigitStats,
   computeTradeSignal,
@@ -79,6 +81,9 @@ function Index() {
           state={state}
         />
 
+        <BotPromoBanner />
+
+
         <section className="grid gap-6 lg:grid-cols-[1fr_320px]">
           <div className="space-y-6 rounded-xl border border-border bg-card p-4 sm:p-6">
             <div className="flex flex-wrap items-end justify-between gap-3">
@@ -131,6 +136,7 @@ function Index() {
 
           <aside className="space-y-4">
             <SignalPanel signal={signal} />
+            <ValidSignalsPanel />
             <div className="rounded-lg border border-border bg-card p-4 text-[11px] leading-relaxed text-muted-foreground">
               <p className="font-semibold uppercase tracking-widest text-foreground">
                 Risk disclaimer
