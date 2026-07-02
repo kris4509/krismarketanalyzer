@@ -136,6 +136,7 @@ function Index() {
 
           <aside className="space-y-4">
             <SignalPanel signal={signal} />
+            <ValidSignalsPanel />
             <div className="rounded-lg border border-border bg-card p-4 text-[11px] leading-relaxed text-muted-foreground">
               <p className="font-semibold uppercase tracking-widest text-foreground">
                 Risk disclaimer
