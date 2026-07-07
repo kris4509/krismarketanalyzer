@@ -185,7 +185,7 @@ function ScannerPage() {
     }
     return { tracked, raw, last20Map };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [feeds, mode, strategy]);
+  }, [feeds, mode, strategy, persistMs]);
 
   // ─── Cross-scanner alerts: detect locked signals on the OTHER modes. ───
   const crossSignals = useMemo(() => {
