@@ -76,10 +76,12 @@ export function ValidSignalsPanel({
         }
       }
     }
-    // sort strongest first
+    // sort strongest first + apply strength threshold
     out.sort((a, b) => b.signal.strength - a.signal.strength);
-    return out;
-  }, [feeds]);
+    return out.filter((r) => r.signal.strength >= minStrength);
+  }, [feeds, minStrength]);
+
+  const isSuppressed = !!suppressed;
 
   return (
     <div className="rounded-lg border border-border bg-card p-4">
