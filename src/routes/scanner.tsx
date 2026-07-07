@@ -248,11 +248,11 @@ function ScannerPage() {
   // For the two right-most stat cards we show context-aware totals.
   const evenCount =
     mode === "even-odd"
-      ? tracked.filter((t) => t.direction === "EVEN").length
+      ? filteredTracked.filter((t) => t.direction === "EVEN").length
       : 0;
   const oddCount =
     mode === "even-odd"
-      ? tracked.filter((t) => t.direction === "ODD").length
+      ? filteredTracked.filter((t) => t.direction === "ODD").length
       : 0;
   const avgStrength =
     tracked.length === 0
