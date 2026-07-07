@@ -30,7 +30,13 @@ type Row = {
  * every barrier scanner). Meant for the Analyzer sidebar so a trader
  * doesn't have to switch tabs to see opportunities.
  */
-export function ValidSignalsPanel() {
+export function ValidSignalsPanel({
+  suppressed = null,
+  minStrength = 0,
+}: {
+  suppressed?: RegimeInfo | null;
+  minStrength?: number;
+} = {}) {
   const { feeds, state } = useMultiDerivTicks(SCAN_CODES, 1000);
 
   const rows = useMemo<Row[]>(() => {
