@@ -177,7 +177,7 @@ function ScannerPage() {
           firstSeen: t.firstSeen,
           lastSeen: now,
           heldMs: held,
-          persistent: held >= PERSIST_MS,
+          persistent: held >= persistMs,
         });
       } else {
         tracker.delete(key);
@@ -230,7 +230,7 @@ function ScannerPage() {
           firstSeen: t.firstSeen,
           lastSeen: now,
           heldMs: held,
-          persistent: held >= PERSIST_MS,
+          persistent: held >= persistMs,
         };
         out[m].signals.push(ts);
         if (ts.persistent) out[m].locked++;
@@ -531,7 +531,7 @@ function ScannerPage() {
             Cross-scanner alerts {crossAlerts ? "ON" : "OFF"}
           </button>
           <span className="ml-auto text-[11px] text-muted-foreground">
-            Fires once when a signal locks (≥{PERSIST_MS / 1000}s).
+            Fires once when a signal locks (≥{(persistMs / 1000).toFixed(1)}s).
           </span>
         </section>
 
@@ -559,7 +559,7 @@ function ScannerPage() {
         {locked.length > 0 && (
           <Section
             title="Locked signals"
-            sub={`Held ≥ ${PERSIST_MS / 1000}s — strongest conviction`}
+            sub={`Held ≥ ${(persistMs / 1000).toFixed(1)}s — strongest conviction`}
             dotClass="bg-[var(--rank-most)] animate-pulse"
           >
             <div className="space-y-3">
