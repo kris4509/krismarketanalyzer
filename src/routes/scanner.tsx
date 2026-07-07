@@ -536,8 +536,54 @@ function ScannerPage() {
           </span>
         </section>
 
+        {/* ─── User-adjustable thresholds ─── */}
+        <section className="grid gap-3 rounded-lg border border-border bg-card/50 p-3 sm:grid-cols-2">
+          <div>
+            <div className="mb-1 flex items-center justify-between font-mono text-[11px]">
+              <span className="uppercase tracking-[0.18em] text-muted-foreground">
+                Lock hold time
+              </span>
+              <span className="tabular-nums text-foreground">
+                {(persistMs / 1000).toFixed(1)}s
+              </span>
+            </div>
+            <input
+              type="range"
+              min={1000}
+              max={15000}
+              step={500}
+              value={persistMs}
+              onChange={(e) => setPersistMs(Number(e.target.value))}
+              className="w-full accent-[var(--rank-most)]"
+            />
+          </div>
+          <div>
+            <div className="mb-1 flex items-center justify-between font-mono text-[11px]">
+              <span className="uppercase tracking-[0.18em] text-muted-foreground">
+                Min strength
+              </span>
+              <span className="tabular-nums text-foreground">
+                {minStrength}%
+              </span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={90}
+              step={1}
+              value={minStrength}
+              onChange={(e) => setMinStrength(Number(e.target.value))}
+              className="w-full accent-[var(--rank-second)]"
+            />
+          </div>
+        </section>
+
         <section className="grid gap-3 sm:grid-cols-4">
-          <StatCard label="Locked ≥5s" value={locked.length} tone="most" />
+          <StatCard
+            label={`Locked ≥${(persistMs / 1000).toFixed(1)}s`}
+            value={locked.length}
+            tone="most"
+          />
           <StatCard label="Fresh signals" value={fresh.length} tone="second" />
           {mode === "even-odd" ? (
             <>
