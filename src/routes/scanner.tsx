@@ -73,6 +73,8 @@ function ScannerPage() {
   const [count, setCount] = useState(DEFAULT_TICK_COUNT);
   const [mode, setMode] = useState<ScannerMode>("even-odd");
   const [strategy, setStrategy] = useState<EvenOddStrategy>("rank-alignment");
+  const [persistMs, setPersistMs] = useState(PERSIST_MS);
+  const [minStrength, setMinStrength] = useState(0);
   const activeScanner = SCANNERS[mode];
   const detect =
     mode === "even-odd"
@@ -175,7 +177,7 @@ function ScannerPage() {
           firstSeen: t.firstSeen,
           lastSeen: now,
           heldMs: held,
-          persistent: held >= PERSIST_MS,
+          persistent: held >= persistMs,
         });
       } else {
         tracker.delete(key);
@@ -183,7 +185,7 @@ function ScannerPage() {
     }
     return { tracked, raw, last20Map };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [feeds, mode, strategy]);
+  }, [feeds, mode, strategy, persistMs]);
 
   // ─── Cross-scanner alerts: detect locked signals on the OTHER modes. ───
   const crossSignals = useMemo(() => {
@@ -228,7 +230,7 @@ function ScannerPage() {
           firstSeen: t.firstSeen,
           lastSeen: now,
           heldMs: held,
-          persistent: held >= PERSIST_MS,
+          persistent: held >= persistMs,
         };
         out[m].signals.push(ts);
         if (ts.persistent) out[m].locked++;
@@ -236,20 +238,21 @@ function ScannerPage() {
       }
     }
     return out;
-  }, [feeds, mode, tracked]);
+  }, [feeds, mode, tracked, persistMs]);
 
-  const locked = tracked.filter((t) => t.persistent);
-  const fresh = tracked.filter((t) => !t.persistent);
+  const filteredTracked = tracked.filter((t) => t.strength >= minStrength);
+  const locked = filteredTracked.filter((t) => t.persistent);
+  const fresh = filteredTracked.filter((t) => !t.persistent);
   const noSignal = raw.filter((r) => !r.signal);
 
   // For the two right-most stat cards we show context-aware totals.
   const evenCount =
     mode === "even-odd"
-      ? tracked.filter((t) => t.direction === "EVEN").length
+      ? filteredTracked.filter((t) => t.direction === "EVEN").length
       : 0;
   const oddCount =
     mode === "even-odd"
-      ? tracked.filter((t) => t.direction === "ODD").length
+      ? filteredTracked.filter((t) => t.direction === "ODD").length
       : 0;
   const avgStrength =
     tracked.length === 0
@@ -529,12 +532,58 @@ function ScannerPage() {
             Cross-scanner alerts {crossAlerts ? "ON" : "OFF"}
           </button>
           <span className="ml-auto text-[11px] text-muted-foreground">
-            Fires once when a signal locks (≥{PERSIST_MS / 1000}s).
+            Fires once when a signal locks (≥{(persistMs / 1000).toFixed(1)}s).
           </span>
         </section>
 
+        {/* ─── User-adjustable thresholds ─── */}
+        <section className="grid gap-3 rounded-lg border border-border bg-card/50 p-3 sm:grid-cols-2">
+          <div>
+            <div className="mb-1 flex items-center justify-between font-mono text-[11px]">
+              <span className="uppercase tracking-[0.18em] text-muted-foreground">
+                Lock hold time
+              </span>
+              <span className="tabular-nums text-foreground">
+                {(persistMs / 1000).toFixed(1)}s
+              </span>
+            </div>
+            <input
+              type="range"
+              min={1000}
+              max={15000}
+              step={500}
+              value={persistMs}
+              onChange={(e) => setPersistMs(Number(e.target.value))}
+              className="w-full accent-[var(--rank-most)]"
+            />
+          </div>
+          <div>
+            <div className="mb-1 flex items-center justify-between font-mono text-[11px]">
+              <span className="uppercase tracking-[0.18em] text-muted-foreground">
+                Min strength
+              </span>
+              <span className="tabular-nums text-foreground">
+                {minStrength}%
+              </span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={90}
+              step={1}
+              value={minStrength}
+              onChange={(e) => setMinStrength(Number(e.target.value))}
+              className="w-full accent-[var(--rank-second)]"
+            />
+          </div>
+        </section>
+
         <section className="grid gap-3 sm:grid-cols-4">
-          <StatCard label="Locked ≥5s" value={locked.length} tone="most" />
+          <StatCard
+            label={`Locked ≥${(persistMs / 1000).toFixed(1)}s`}
+            value={locked.length}
+            tone="most"
+          />
           <StatCard label="Fresh signals" value={fresh.length} tone="second" />
           {mode === "even-odd" ? (
             <>
@@ -557,7 +606,7 @@ function ScannerPage() {
         {locked.length > 0 && (
           <Section
             title="Locked signals"
-            sub={`Held ≥ ${PERSIST_MS / 1000}s — strongest conviction`}
+            sub={`Held ≥ ${(persistMs / 1000).toFixed(1)}s — strongest conviction`}
             dotClass="bg-[var(--rank-most)] animate-pulse"
           >
             <div className="space-y-3">

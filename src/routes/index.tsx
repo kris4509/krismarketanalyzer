@@ -4,20 +4,17 @@ import { AppHeader } from "@/components/analysis/AppHeader";
 import { BotPromoBanner } from "@/components/analysis/BotPromoBanner";
 import { Controls } from "@/components/analysis/Controls";
 import { DigitCircles } from "@/components/analysis/DigitCircles";
-import { SignalPanel } from "@/components/analysis/SignalPanel";
 import { TickChart } from "@/components/analysis/TickChart";
 import { ValidSignalsPanel } from "@/components/analysis/ValidSignalsPanel";
-import {
-  computeDigitStats,
-  computeTradeSignal,
-  lastDigit,
-} from "@/lib/deriv/analysis";
+import { computeDigitStats, lastDigit } from "@/lib/deriv/analysis";
+import { computeRegime } from "@/lib/deriv/regime";
 import {
   DEFAULT_SYMBOL,
   DEFAULT_TICK_COUNT,
   DERIV_SYMBOLS,
 } from "@/lib/deriv/symbols";
 import { useDerivTicks } from "@/lib/deriv/useDerivTicks";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -42,6 +39,8 @@ export const Route = createFileRoute("/")({
 function Index() {
   const [symbol, setSymbol] = useState(DEFAULT_SYMBOL);
   const [count, setCount] = useState(DEFAULT_TICK_COUNT);
+  const [suppressChoppy, setSuppressChoppy] = useState(true);
+  const [minStrength, setMinStrength] = useState(0);
 
   const symbolMeta = useMemo(
     () => DERIV_SYMBOLS.find((s) => s.code === symbol) ?? DERIV_SYMBOLS[0],
@@ -56,7 +55,7 @@ function Index() {
     [ticks, pip],
   );
 
-  const signal = useMemo(() => computeTradeSignal(stats, ticks), [stats, ticks]);
+  const regime = useMemo(() => computeRegime(ticks, 100), [ticks]);
 
   const currentTick = ticks[ticks.length - 1];
   const prevTick = ticks[ticks.length - 2];
@@ -72,7 +71,7 @@ function Index() {
     <div className="min-h-screen bg-background text-foreground">
       <AppHeader live={state === "open"} />
 
-      <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6">
+      <main className="mx-auto max-w-7xl space-y-6 px-3 py-5 sm:px-6 sm:py-6">
         <Controls
           symbol={symbol}
           onSymbol={setSymbol}
@@ -83,26 +82,25 @@ function Index() {
 
         <BotPromoBanner />
 
-
-        <section className="grid gap-6 lg:grid-cols-[1fr_320px]">
-          <div className="space-y-6 rounded-xl border border-border bg-card p-4 sm:p-6">
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <div>
+        <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="min-w-0 space-y-6 rounded-xl border border-border bg-card p-3 sm:p-6">
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
+              <div className="min-w-0">
                 <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
                   {symbolMeta.group}
                 </div>
-                <h2 className="mt-1 font-mono text-xl font-semibold sm:text-2xl">
+                <h2 className="mt-1 truncate font-mono text-lg font-semibold sm:text-2xl">
                   {symbolMeta.label}
                 </h2>
               </div>
               <div className="text-right">
-                <div className="font-mono text-3xl font-bold tabular-nums sm:text-4xl">
+                <div className="font-mono text-2xl font-bold tabular-nums sm:text-4xl">
                   {currentTick ? currentTick.quote.toFixed(pip) : "—"}
                 </div>
                 {currentTick && prevTick && (
                   <div
                     className={
-                      "font-mono text-xs " +
+                      "font-mono text-[11px] sm:text-xs " +
                       (up ? "text-[var(--rank-most)]" : "text-[var(--rank-least)]")
                     }
                   >
@@ -134,9 +132,20 @@ function Index() {
             </div>
           </div>
 
-          <aside className="space-y-4">
-            <SignalPanel signal={signal} />
-            <ValidSignalsPanel />
+          <aside className="min-w-0 space-y-4">
+            <RegimeCard
+              regime={regime}
+              suppress={suppressChoppy}
+              onSuppress={setSuppressChoppy}
+              minStrength={minStrength}
+              onMinStrength={setMinStrength}
+            />
+            <ValidSignalsPanel
+              suppressed={
+                suppressChoppy && regime?.regime === "choppy" ? regime : null
+              }
+              minStrength={minStrength}
+            />
             <div className="rounded-lg border border-border bg-card p-4 text-[11px] leading-relaxed text-muted-foreground">
               <p className="font-semibold uppercase tracking-widest text-foreground">
                 Risk disclaimer
@@ -150,6 +159,122 @@ function Index() {
           </aside>
         </section>
       </main>
+    </div>
+  );
+}
+
+function RegimeCard({
+  regime,
+  suppress,
+  onSuppress,
+  minStrength,
+  onMinStrength,
+}: {
+  regime: ReturnType<typeof computeRegime>;
+  suppress: boolean;
+  onSuppress: (v: boolean) => void;
+  minStrength: number;
+  onMinStrength: (v: number) => void;
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-card p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+          Market Regime
+        </h3>
+        <span className="font-mono text-[10px] text-muted-foreground">
+          Choppiness · ATR
+        </span>
+      </div>
+      {!regime ? (
+        <p className="py-2 font-mono text-[11px] text-muted-foreground">
+          Collecting ticks…
+        </p>
+      ) : (
+        <>
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div
+                className="font-mono text-lg font-bold uppercase tracking-wider"
+                style={{ color: regime.tone }}
+              >
+                {regime.label}
+              </div>
+              <div className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground">
+                {regime.detail}
+              </div>
+            </div>
+            <div className="text-right font-mono text-[11px] tabular-nums">
+              <div>
+                CI{" "}
+                <span className="font-bold" style={{ color: regime.tone }}>
+                  {regime.choppiness.toFixed(0)}
+                </span>
+              </div>
+              <div className="text-muted-foreground">
+                ATR {regime.atrBps.toFixed(1)}bp
+              </div>
+            </div>
+          </div>
+          {/* CI meter — 0 trending, 100 choppy */}
+          <div className="mt-3 relative h-1.5 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className={cn(
+                "h-full transition-all",
+                regime.regime === "choppy"
+                  ? "bg-[var(--rank-least)]"
+                  : regime.regime === "calm"
+                    ? "bg-[var(--rank-most)]"
+                    : "bg-[var(--rank-second)]",
+              )}
+              style={{ width: `${regime.choppiness}%` }}
+            />
+            <div
+              className="absolute top-0 h-full w-px bg-foreground/40"
+              style={{ left: "38.2%" }}
+            />
+            <div
+              className="absolute top-0 h-full w-px bg-foreground/40"
+              style={{ left: "61.8%" }}
+            />
+          </div>
+        </>
+      )}
+
+      <div className="mt-4 space-y-3 border-t border-border pt-3">
+        <label className="flex items-center justify-between gap-2 font-mono text-[11px]">
+          <span className="text-muted-foreground">Suppress on choppy</span>
+          <button
+            type="button"
+            onClick={() => onSuppress(!suppress)}
+            className={cn(
+              "rounded-md border px-2 py-0.5 text-[10px] uppercase tracking-widest",
+              suppress
+                ? "border-[var(--rank-most)] text-[var(--rank-most)]"
+                : "border-border text-muted-foreground",
+            )}
+          >
+            {suppress ? "ON" : "OFF"}
+          </button>
+        </label>
+        <div>
+          <div className="mb-1 flex items-center justify-between font-mono text-[11px] text-muted-foreground">
+            <span>Min strength</span>
+            <span className="tabular-nums text-foreground">
+              {minStrength}%
+            </span>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={90}
+            step={1}
+            value={minStrength}
+            onChange={(e) => onMinStrength(Number(e.target.value))}
+            className="w-full accent-[var(--rank-most)]"
+          />
+        </div>
+      </div>
     </div>
   );
 }

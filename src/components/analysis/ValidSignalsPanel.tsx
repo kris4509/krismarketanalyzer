@@ -8,6 +8,7 @@ import {
   type ScannerMode,
 } from "@/lib/deriv/scanner";
 import { DERIV_SYMBOLS } from "@/lib/deriv/symbols";
+import type { RegimeInfo } from "@/lib/deriv/regime";
 import { cn } from "@/lib/utils";
 
 const SCAN_SYMBOLS = DERIV_SYMBOLS.filter(
@@ -29,7 +30,13 @@ type Row = {
  * every barrier scanner). Meant for the Analyzer sidebar so a trader
  * doesn't have to switch tabs to see opportunities.
  */
-export function ValidSignalsPanel() {
+export function ValidSignalsPanel({
+  suppressed = null,
+  minStrength = 0,
+}: {
+  suppressed?: RegimeInfo | null;
+  minStrength?: number;
+} = {}) {
   const { feeds, state } = useMultiDerivTicks(SCAN_CODES, 1000);
 
   const rows = useMemo<Row[]>(() => {
@@ -69,10 +76,12 @@ export function ValidSignalsPanel() {
         }
       }
     }
-    // sort strongest first
+    // sort strongest first + apply strength threshold
     out.sort((a, b) => b.signal.strength - a.signal.strength);
-    return out;
-  }, [feeds]);
+    return out.filter((r) => r.signal.strength >= minStrength);
+  }, [feeds, minStrength]);
+
+  const isSuppressed = !!suppressed;
 
   return (
     <div className="rounded-lg border border-border bg-card p-4">
@@ -84,7 +93,12 @@ export function ValidSignalsPanel() {
           {state === "open" ? `${rows.length} active` : state}
         </span>
       </div>
-      {rows.length === 0 ? (
+      {isSuppressed ? (
+        <div className="rounded-md border border-[var(--rank-least)]/50 bg-[var(--rank-least)]/5 p-3 text-center font-mono text-[11px] text-[var(--rank-least)]">
+          Signals suppressed — market is {suppressed!.label.toLowerCase()} (CI{" "}
+          {suppressed!.choppiness.toFixed(0)}).
+        </div>
+      ) : rows.length === 0 ? (
         <p className="py-6 text-center font-mono text-xs text-muted-foreground">
           No valid signals right now — scanning {SCAN_SYMBOLS.length} markets.
         </p>
