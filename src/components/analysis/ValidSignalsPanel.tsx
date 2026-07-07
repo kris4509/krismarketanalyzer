@@ -8,6 +8,7 @@ import {
   type ScannerMode,
 } from "@/lib/deriv/scanner";
 import { DERIV_SYMBOLS } from "@/lib/deriv/symbols";
+import type { RegimeInfo } from "@/lib/deriv/regime";
 import { cn } from "@/lib/utils";
 
 const SCAN_SYMBOLS = DERIV_SYMBOLS.filter(
