@@ -93,7 +93,12 @@ export function ValidSignalsPanel({
           {state === "open" ? `${rows.length} active` : state}
         </span>
       </div>
-      {rows.length === 0 ? (
+      {isSuppressed ? (
+        <div className="rounded-md border border-[var(--rank-least)]/50 bg-[var(--rank-least)]/5 p-3 text-center font-mono text-[11px] text-[var(--rank-least)]">
+          Signals suppressed — market is {suppressed!.label.toLowerCase()} (CI{" "}
+          {suppressed!.choppiness.toFixed(0)}).
+        </div>
+      ) : rows.length === 0 ? (
         <p className="py-6 text-center font-mono text-xs text-muted-foreground">
           No valid signals right now — scanning {SCAN_SYMBOLS.length} markets.
         </p>
