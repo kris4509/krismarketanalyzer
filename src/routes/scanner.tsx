@@ -73,6 +73,8 @@ function ScannerPage() {
   const [count, setCount] = useState(DEFAULT_TICK_COUNT);
   const [mode, setMode] = useState<ScannerMode>("even-odd");
   const [strategy, setStrategy] = useState<EvenOddStrategy>("rank-alignment");
+  const [persistMs, setPersistMs] = useState(PERSIST_MS);
+  const [minStrength, setMinStrength] = useState(0);
   const activeScanner = SCANNERS[mode];
   const detect =
     mode === "even-odd"
