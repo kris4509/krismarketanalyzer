@@ -238,10 +238,11 @@ function ScannerPage() {
       }
     }
     return out;
-  }, [feeds, mode, tracked]);
+  }, [feeds, mode, tracked, persistMs]);
 
-  const locked = tracked.filter((t) => t.persistent);
-  const fresh = tracked.filter((t) => !t.persistent);
+  const filteredTracked = tracked.filter((t) => t.strength >= minStrength);
+  const locked = filteredTracked.filter((t) => t.persistent);
+  const fresh = filteredTracked.filter((t) => !t.persistent);
   const noSignal = raw.filter((r) => !r.signal);
 
   // For the two right-most stat cards we show context-aware totals.
