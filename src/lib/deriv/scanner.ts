@@ -91,11 +91,10 @@ export function detectEvenOddSignal(
 }
 
 /**
- * Odd Strategy (strict):
- *   Green & Blue on ODD digits, each ≥ 11%.
- *   Red & Yellow on EVEN digits, red ≤ 8.6%, yellow ≤ 9.5%.
+ * Even Strategy (positional):
+ *   Red (least) on {0, 2, 4} AND Green (most) on {5, 7, 9}.
  */
-export function detectOddStrict(
+export function detectEvenStrict(
   symbol: string,
   ticks: Tick[],
   pip: number,
@@ -103,26 +102,25 @@ export function detectOddStrict(
   if (ticks.length < 100) return null;
   const stats = computeDigitStats(ticks, pip);
   const green = stats.find((s) => s.rank === "most");
+  const red = stats.find((s) => s.rank === "least");
   const blue = stats.find((s) => s.rank === "second");
   const yellow = stats.find((s) => s.rank === "second-least");
-  const red = stats.find((s) => s.rank === "least");
-  if (!green || !blue || !yellow || !red) return null;
+  if (!green || !red || !blue || !yellow) return null;
 
-  if (green.digit % 2 !== 1 || blue.digit % 2 !== 1) return null;
-  if (green.percent < 11 || blue.percent < 11) return null;
-  if (red.digit % 2 !== 0 || yellow.digit % 2 !== 0) return null;
-  if (red.percent > 8.6) return null;
-  if (yellow.percent > 9.5) return null;
+  const redAllowed = new Set([0, 2, 4]);
+  const greenAllowed = new Set([5, 7, 9]);
+  if (!redAllowed.has(red.digit)) return null;
+  if (!greenAllowed.has(green.digit)) return null;
 
-  const winningDigits = evenOddWinningDigits(1);
+  const winningDigits = evenOddWinningDigits(0);
   const strength = stats
-    .filter((s) => s.digit % 2 === 1)
+    .filter((s) => s.digit % 2 === 0)
     .reduce((a, s) => a + s.percent, 0);
   const last = ticks[ticks.length - 1];
   return {
     symbol,
     mode: "even-odd",
-    direction: "ODD",
+    direction: "EVEN",
     winningDigits,
     greenDigit: green.digit,
     redDigit: red.digit,
@@ -138,11 +136,10 @@ export function detectOddStrict(
 }
 
 /**
- * Even Strategy (strict):
- *   Green & Blue on EVEN digits, each > 11%.
- *   Red ≤ 8.6%, Yellow ≤ 9.5% (parity unrestricted).
+ * Odd Strategy (positional):
+ *   Red (least) on {1, 3, 5} AND Green (most) on {6, 8}.
  */
-export function detectEvenStrict(
+export function detectOddStrict(
   symbol: string,
   ticks: Tick[],
   pip: number,
@@ -150,25 +147,25 @@ export function detectEvenStrict(
   if (ticks.length < 100) return null;
   const stats = computeDigitStats(ticks, pip);
   const green = stats.find((s) => s.rank === "most");
+  const red = stats.find((s) => s.rank === "least");
   const blue = stats.find((s) => s.rank === "second");
   const yellow = stats.find((s) => s.rank === "second-least");
-  const red = stats.find((s) => s.rank === "least");
-  if (!green || !blue || !yellow || !red) return null;
+  if (!green || !red || !blue || !yellow) return null;
 
-  if (green.digit % 2 !== 0 || blue.digit % 2 !== 0) return null;
-  if (green.percent <= 11 || blue.percent <= 11) return null;
-  if (red.percent > 8.6) return null;
-  if (yellow.percent > 9.5) return null;
+  const redAllowed = new Set([1, 3, 5]);
+  const greenAllowed = new Set([6, 8]);
+  if (!redAllowed.has(red.digit)) return null;
+  if (!greenAllowed.has(green.digit)) return null;
 
-  const winningDigits = evenOddWinningDigits(0);
+  const winningDigits = evenOddWinningDigits(1);
   const strength = stats
-    .filter((s) => s.digit % 2 === 0)
+    .filter((s) => s.digit % 2 === 1)
     .reduce((a, s) => a + s.percent, 0);
   const last = ticks[ticks.length - 1];
   return {
     symbol,
     mode: "even-odd",
-    direction: "EVEN",
+    direction: "ODD",
     winningDigits,
     greenDigit: green.digit,
     redDigit: red.digit,
@@ -197,15 +194,15 @@ export const STRATEGIES: Record<
     sub: "Green+Red same parity · Blue+Yellow opposite",
     detect: detectEvenOddSignal,
   },
-  "odd-strict": {
-    label: "Odd Strategy",
-    sub: "G+B on odd ≥11% · R+Y on even · R≤8.6% · Y≤9.5%",
-    detect: detectOddStrict,
-  },
   "even-strict": {
     label: "Even Strategy",
-    sub: "G+B on even >11% · R≤8.6% · Y≤9.5%",
+    sub: "Red on 0/2/4 · Green on 5/7/9",
     detect: detectEvenStrict,
+  },
+  "odd-strict": {
+    label: "Odd Strategy",
+    sub: "Red on 1/3/5 · Green on 6/8",
+    detect: detectOddStrict,
   },
 };
 
