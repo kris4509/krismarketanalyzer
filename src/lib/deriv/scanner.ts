@@ -6,6 +6,7 @@ export type ScannerMode =
   | "under-8"
   | "under-7"
   | "under-9"
+  | "under-9-c4"
   | "over-2"
   | "over-3"
   | "over-1";
@@ -91,11 +92,10 @@ export function detectEvenOddSignal(
 }
 
 /**
- * Odd Strategy (strict):
- *   Green & Blue on ODD digits, each ≥ 11%.
- *   Red & Yellow on EVEN digits, red ≤ 8.6%, yellow ≤ 9.5%.
+ * Even Strategy (positional):
+ *   Red (least) on {0, 2, 4} AND Green (most) on {5, 7, 9}.
  */
-export function detectOddStrict(
+export function detectEvenStrict(
   symbol: string,
   ticks: Tick[],
   pip: number,
@@ -103,26 +103,25 @@ export function detectOddStrict(
   if (ticks.length < 100) return null;
   const stats = computeDigitStats(ticks, pip);
   const green = stats.find((s) => s.rank === "most");
+  const red = stats.find((s) => s.rank === "least");
   const blue = stats.find((s) => s.rank === "second");
   const yellow = stats.find((s) => s.rank === "second-least");
-  const red = stats.find((s) => s.rank === "least");
-  if (!green || !blue || !yellow || !red) return null;
+  if (!green || !red || !blue || !yellow) return null;
 
-  if (green.digit % 2 !== 1 || blue.digit % 2 !== 1) return null;
-  if (green.percent < 11 || blue.percent < 11) return null;
-  if (red.digit % 2 !== 0 || yellow.digit % 2 !== 0) return null;
-  if (red.percent > 8.6) return null;
-  if (yellow.percent > 9.5) return null;
+  const redAllowed = new Set([0, 2, 4]);
+  const greenAllowed = new Set([5, 7, 9]);
+  if (!redAllowed.has(red.digit)) return null;
+  if (!greenAllowed.has(green.digit)) return null;
 
-  const winningDigits = evenOddWinningDigits(1);
+  const winningDigits = evenOddWinningDigits(0);
   const strength = stats
-    .filter((s) => s.digit % 2 === 1)
+    .filter((s) => s.digit % 2 === 0)
     .reduce((a, s) => a + s.percent, 0);
   const last = ticks[ticks.length - 1];
   return {
     symbol,
     mode: "even-odd",
-    direction: "ODD",
+    direction: "EVEN",
     winningDigits,
     greenDigit: green.digit,
     redDigit: red.digit,
@@ -138,11 +137,10 @@ export function detectOddStrict(
 }
 
 /**
- * Even Strategy (strict):
- *   Green & Blue on EVEN digits, each > 11%.
- *   Red ≤ 8.6%, Yellow ≤ 9.5% (parity unrestricted).
+ * Odd Strategy (positional):
+ *   Red (least) on {1, 3, 5} AND Green (most) on {6, 8}.
  */
-export function detectEvenStrict(
+export function detectOddStrict(
   symbol: string,
   ticks: Tick[],
   pip: number,
@@ -150,25 +148,25 @@ export function detectEvenStrict(
   if (ticks.length < 100) return null;
   const stats = computeDigitStats(ticks, pip);
   const green = stats.find((s) => s.rank === "most");
+  const red = stats.find((s) => s.rank === "least");
   const blue = stats.find((s) => s.rank === "second");
   const yellow = stats.find((s) => s.rank === "second-least");
-  const red = stats.find((s) => s.rank === "least");
-  if (!green || !blue || !yellow || !red) return null;
+  if (!green || !red || !blue || !yellow) return null;
 
-  if (green.digit % 2 !== 0 || blue.digit % 2 !== 0) return null;
-  if (green.percent <= 11 || blue.percent <= 11) return null;
-  if (red.percent > 8.6) return null;
-  if (yellow.percent > 9.5) return null;
+  const redAllowed = new Set([1, 3, 5]);
+  const greenAllowed = new Set([6, 8]);
+  if (!redAllowed.has(red.digit)) return null;
+  if (!greenAllowed.has(green.digit)) return null;
 
-  const winningDigits = evenOddWinningDigits(0);
+  const winningDigits = evenOddWinningDigits(1);
   const strength = stats
-    .filter((s) => s.digit % 2 === 0)
+    .filter((s) => s.digit % 2 === 1)
     .reduce((a, s) => a + s.percent, 0);
   const last = ticks[ticks.length - 1];
   return {
     symbol,
     mode: "even-odd",
-    direction: "EVEN",
+    direction: "ODD",
     winningDigits,
     greenDigit: green.digit,
     redDigit: red.digit,
@@ -197,15 +195,15 @@ export const STRATEGIES: Record<
     sub: "Green+Red same parity · Blue+Yellow opposite",
     detect: detectEvenOddSignal,
   },
-  "odd-strict": {
-    label: "Odd Strategy",
-    sub: "G+B on odd ≥11% · R+Y on even · R≤8.6% · Y≤9.5%",
-    detect: detectOddStrict,
-  },
   "even-strict": {
     label: "Even Strategy",
-    sub: "G+B on even >11% · R≤8.6% · Y≤9.5%",
+    sub: "Red on 0/2/4 · Green on 5/7/9",
     detect: detectEvenStrict,
+  },
+  "odd-strict": {
+    label: "Odd Strategy",
+    sub: "Red on 1/3/5 · Green on 6/8",
+    detect: detectOddStrict,
   },
 };
 
@@ -225,7 +223,9 @@ function buildBarrierDetector(opts: {
   mode: ScannerMode;
   direction: string;
   greenRange: [number, number]; // inclusive
+  blueRange?: [number, number]; // optional constraint on the 2nd-most-frequent digit
   redRange?: [number, number]; // optional constraint on the least-frequent digit
+  yellowRange?: [number, number]; // optional constraint on the 2nd-least-frequent digit
   losingDigits: number[];
   winningDigits: number[];
   maxLosingPct: number; // strict <
@@ -242,9 +242,17 @@ function buildBarrierDetector(opts: {
     const [lo, hi] = opts.greenRange;
     if (green.digit < lo || green.digit > hi) return null;
 
+    if (opts.blueRange) {
+      const [blo, bhi] = opts.blueRange;
+      if (blue.digit < blo || blue.digit > bhi) return null;
+    }
     if (opts.redRange) {
       const [rlo, rhi] = opts.redRange;
       if (red.digit < rlo || red.digit > rhi) return null;
+    }
+    if (opts.yellowRange) {
+      const [ylo, yhi] = opts.yellowRange;
+      if (yellow.digit < ylo || yellow.digit > yhi) return null;
     }
 
     // every losing digit must be strictly below the threshold
@@ -282,6 +290,7 @@ export const detectUnder8 = buildBarrierDetector({
   mode: "under-8",
   direction: "UNDER 8",
   greenRange: [0, 6],
+  blueRange: [0, 6],
   losingDigits: [8, 9],
   winningDigits: range(0, 7),
   maxLosingPct: 10,
@@ -291,6 +300,7 @@ export const detectUnder7 = buildBarrierDetector({
   mode: "under-7",
   direction: "UNDER 7",
   greenRange: [0, 5],
+  blueRange: [0, 5],
   losingDigits: [7, 8, 9],
   winningDigits: range(0, 6),
   maxLosingPct: 10,
@@ -300,6 +310,7 @@ export const detectOver2 = buildBarrierDetector({
   mode: "over-2",
   direction: "OVER 2",
   greenRange: [5, 9],
+  blueRange: [5, 9],
   losingDigits: [0, 1, 2],
   winningDigits: range(3, 9),
   maxLosingPct: 10,
@@ -309,7 +320,7 @@ export const detectOver3 = buildBarrierDetector({
   mode: "over-3",
   direction: "OVER 3",
   greenRange: [5, 9],
-  redRange: [5, 9],
+  blueRange: [5, 9],
   losingDigits: [0, 1, 2, 3],
   winningDigits: range(4, 9),
   maxLosingPct: 10,
@@ -318,16 +329,30 @@ export const detectOver3 = buildBarrierDetector({
 export const detectOver1 = buildBarrierDetector({
   mode: "over-1",
   direction: "OVER 1",
-  greenRange: [4, 9],
+  greenRange: [3, 9],
+  blueRange: [3, 9],
   losingDigits: [0, 1],
   winningDigits: range(2, 9),
   maxLosingPct: 10,
 });
 
+// Basic Under 9 — green & blue on 0–7, only 9 must be < 10%.
 export const detectUnder9 = buildBarrierDetector({
   mode: "under-9",
   direction: "UNDER 9",
   greenRange: [0, 7],
+  blueRange: [0, 7],
+  losingDigits: [9],
+  winningDigits: range(0, 8),
+  maxLosingPct: 10,
+});
+
+// Auto C4 Under 9 — tighter: green & blue on 0–4.
+export const detectUnder9C4 = buildBarrierDetector({
+  mode: "under-9-c4",
+  direction: "UNDER 9",
+  greenRange: [0, 4],
+  blueRange: [0, 4],
   losingDigits: [9],
   winningDigits: range(0, 8),
   maxLosingPct: 10,
@@ -369,29 +394,36 @@ export const SCANNERS: Record<ScannerMode, ScannerInfo> = {
   },
   "under-9": {
     mode: "under-9",
-    label: "Under 9",
-    sub: "Green 0–7 · 9 below 10%",
+    label: "Under 9 · Basic",
+    sub: "Green & Blue 0–7 · 9 below 10%",
     detect: detectUnder9,
+    hasStrategies: false,
+  },
+  "under-9-c4": {
+    mode: "under-9-c4",
+    label: "Under 9 · Auto C4",
+    sub: "Green & Blue 0–4 · 9 below 10%",
+    detect: detectUnder9C4,
     hasStrategies: false,
   },
   "over-1": {
     mode: "over-1",
     label: "Over 1",
-    sub: "Green 4–9 · 0 & 1 below 10%",
+    sub: "Green & Blue 3–9 · 0 & 1 below 10%",
     detect: detectOver1,
     hasStrategies: false,
   },
   "over-2": {
     mode: "over-2",
     label: "Over 2",
-    sub: "Green 5–9 · 0, 1 & 2 below 10%",
+    sub: "Green & Blue 5–9 · 0, 1 & 2 below 10%",
     detect: detectOver2,
     hasStrategies: false,
   },
   "over-3": {
     mode: "over-3",
     label: "Over 3",
-    sub: "Green & Red 5–9 · 0–3 below 10%",
+    sub: "Green & Blue 5–9 · 0–3 below 10%",
     detect: detectOver3,
     hasStrategies: false,
   },
@@ -402,6 +434,7 @@ export const SCANNER_MODES: ScannerMode[] = [
   "under-8",
   "under-7",
   "under-9",
+  "under-9-c4",
   "over-1",
   "over-2",
   "over-3",
