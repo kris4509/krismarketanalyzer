@@ -6,6 +6,7 @@ export type ScannerMode =
   | "under-8"
   | "under-7"
   | "under-9"
+  | "under-9-c4"
   | "over-2"
   | "over-3"
   | "over-1";
