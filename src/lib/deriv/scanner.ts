@@ -223,7 +223,9 @@ function buildBarrierDetector(opts: {
   mode: ScannerMode;
   direction: string;
   greenRange: [number, number]; // inclusive
+  blueRange?: [number, number]; // optional constraint on the 2nd-most-frequent digit
   redRange?: [number, number]; // optional constraint on the least-frequent digit
+  yellowRange?: [number, number]; // optional constraint on the 2nd-least-frequent digit
   losingDigits: number[];
   winningDigits: number[];
   maxLosingPct: number; // strict <
@@ -240,9 +242,17 @@ function buildBarrierDetector(opts: {
     const [lo, hi] = opts.greenRange;
     if (green.digit < lo || green.digit > hi) return null;
 
+    if (opts.blueRange) {
+      const [blo, bhi] = opts.blueRange;
+      if (blue.digit < blo || blue.digit > bhi) return null;
+    }
     if (opts.redRange) {
       const [rlo, rhi] = opts.redRange;
       if (red.digit < rlo || red.digit > rhi) return null;
+    }
+    if (opts.yellowRange) {
+      const [ylo, yhi] = opts.yellowRange;
+      if (yellow.digit < ylo || yellow.digit > yhi) return null;
     }
 
     // every losing digit must be strictly below the threshold
@@ -280,6 +290,7 @@ export const detectUnder8 = buildBarrierDetector({
   mode: "under-8",
   direction: "UNDER 8",
   greenRange: [0, 6],
+  blueRange: [0, 6],
   losingDigits: [8, 9],
   winningDigits: range(0, 7),
   maxLosingPct: 10,
@@ -289,6 +300,7 @@ export const detectUnder7 = buildBarrierDetector({
   mode: "under-7",
   direction: "UNDER 7",
   greenRange: [0, 5],
+  blueRange: [0, 5],
   losingDigits: [7, 8, 9],
   winningDigits: range(0, 6),
   maxLosingPct: 10,
@@ -298,6 +310,7 @@ export const detectOver2 = buildBarrierDetector({
   mode: "over-2",
   direction: "OVER 2",
   greenRange: [5, 9],
+  blueRange: [5, 9],
   losingDigits: [0, 1, 2],
   winningDigits: range(3, 9),
   maxLosingPct: 10,
@@ -307,7 +320,7 @@ export const detectOver3 = buildBarrierDetector({
   mode: "over-3",
   direction: "OVER 3",
   greenRange: [5, 9],
-  redRange: [5, 9],
+  blueRange: [5, 9],
   losingDigits: [0, 1, 2, 3],
   winningDigits: range(4, 9),
   maxLosingPct: 10,
@@ -316,16 +329,30 @@ export const detectOver3 = buildBarrierDetector({
 export const detectOver1 = buildBarrierDetector({
   mode: "over-1",
   direction: "OVER 1",
-  greenRange: [4, 9],
+  greenRange: [3, 9],
+  blueRange: [3, 9],
   losingDigits: [0, 1],
   winningDigits: range(2, 9),
   maxLosingPct: 10,
 });
 
+// Basic Under 9 — green & blue on 0–7, only 9 must be < 10%.
 export const detectUnder9 = buildBarrierDetector({
   mode: "under-9",
   direction: "UNDER 9",
   greenRange: [0, 7],
+  blueRange: [0, 7],
+  losingDigits: [9],
+  winningDigits: range(0, 8),
+  maxLosingPct: 10,
+});
+
+// Auto C4 Under 9 — tighter: green & blue on 0–4.
+export const detectUnder9C4 = buildBarrierDetector({
+  mode: "under-9-c4",
+  direction: "UNDER 9",
+  greenRange: [0, 4],
+  blueRange: [0, 4],
   losingDigits: [9],
   winningDigits: range(0, 8),
   maxLosingPct: 10,
