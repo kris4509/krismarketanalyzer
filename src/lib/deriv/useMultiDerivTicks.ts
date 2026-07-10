@@ -30,6 +30,32 @@ export function useMultiDerivTicks(symbols: string[], count: number) {
     let ws: WebSocket;
     let closed = false;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let pingTimer: ReturnType<typeof setInterval> | null = null;
+    let staleTimer: ReturnType<typeof setInterval> | null = null;
+    let lastMsgAt = Date.now();
+    let attempt = 0;
+
+    const clearTimers = () => {
+      if (pingTimer) { clearInterval(pingTimer); pingTimer = null; }
+      if (staleTimer) { clearInterval(staleTimer); staleTimer = null; }
+    };
+
+    const scheduleReconnect = () => {
+      if (closed) return;
+      if (reconnectTimer) return;
+      // exponential backoff, capped at 15s
+      const delay = Math.min(1000 * Math.pow(2, attempt), 15000);
+      attempt++;
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        connect();
+      }, delay);
+    };
+
+    const forceReconnect = () => {
+      clearTimers();
+      try { wsRef.current?.close(); } catch { /* ignore */ }
+    };
 
     const requestHistory = (s: string) => {
       ws.send(
@@ -52,12 +78,26 @@ export function useMultiDerivTicks(symbols: string[], count: number) {
 
       ws.onopen = () => {
         setState("open");
+        attempt = 0;
+        lastMsgAt = Date.now();
         symbols.forEach(requestHistory);
+
+        // Heartbeat: send a lightweight ping every 20s.
+        pingTimer = setInterval(() => {
+          try { ws.send(JSON.stringify({ ping: 1 })); } catch { /* ignore */ }
+        }, 20_000);
+
+        // If no message received in 45s, assume the socket is dead.
+        staleTimer = setInterval(() => {
+          if (Date.now() - lastMsgAt > 45_000) forceReconnect();
+        }, 5_000);
       };
 
       ws.onmessage = (event) => {
+        lastMsgAt = Date.now();
         try {
           const data = JSON.parse(event.data);
+          if (data.msg_type === "ping" || data.pong) return;
           if (data.error) {
             console.error("Deriv scanner error:", data.error);
             return;
@@ -114,16 +154,41 @@ export function useMultiDerivTicks(symbols: string[], count: number) {
 
       ws.onerror = () => setState("error");
       ws.onclose = () => {
+        clearTimers();
         setState("closed");
-        if (!closed) reconnectTimer = setTimeout(connect, 2000);
+        scheduleReconnect();
       };
     };
+
+    const handleOnline = () => {
+      // Network came back — force a fresh connect right away.
+      if (closed) return;
+      if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+      attempt = 0;
+      forceReconnect();
+    };
+    const handleVisibility = () => {
+      if (typeof document === "undefined") return;
+      if (document.visibilityState === "visible") {
+        // If we've been backgrounded and the socket is dead, reconnect.
+        if (wsRef.current?.readyState !== WebSocket.OPEN) forceReconnect();
+      }
+    };
+    if (typeof window !== "undefined") {
+      window.addEventListener("online", handleOnline);
+      document.addEventListener("visibilitychange", handleVisibility);
+    }
 
     connect();
 
     return () => {
       closed = true;
+      clearTimers();
       if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (typeof window !== "undefined") {
+        window.removeEventListener("online", handleOnline);
+        document.removeEventListener("visibilitychange", handleVisibility);
+      }
       try {
         wsRef.current?.send(JSON.stringify({ forget_all: "ticks" }));
       } catch {
