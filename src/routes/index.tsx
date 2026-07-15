@@ -1,12 +1,14 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/analysis/AppHeader";
 import { BotPromoBanner } from "@/components/analysis/BotPromoBanner";
 import { Controls } from "@/components/analysis/Controls";
 import { DigitCircles } from "@/components/analysis/DigitCircles";
+import { EvenOddDominance } from "@/components/analysis/EvenOddDominance";
 import { TickChart } from "@/components/analysis/TickChart";
 import { ValidSignalsPanel } from "@/components/analysis/ValidSignalsPanel";
 import { computeDigitStats, lastDigit } from "@/lib/deriv/analysis";
+import { evenPctFromStats } from "@/lib/deriv/dominance";
 import { computeRegime } from "@/lib/deriv/regime";
 import {
   DEFAULT_SYMBOL,
