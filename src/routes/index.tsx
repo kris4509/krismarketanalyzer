@@ -19,6 +19,9 @@ import { useDerivTicks } from "@/lib/deriv/useDerivTicks";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    symbol: typeof search.symbol === "string" ? search.symbol : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Digit Pulse — Live Deriv Last-Digit Analyzer" },
@@ -39,7 +42,20 @@ export const Route = createFileRoute("/")({
 });
 
 function Index() {
-  const [symbol, setSymbol] = useState(DEFAULT_SYMBOL);
+  const { symbol: symbolParam } = Route.useSearch();
+  const navigate = useNavigate();
+  const [symbol, setSymbol] = useState(symbolParam ?? DEFAULT_SYMBOL);
+
+  // Keep URL and internal state in sync when a deep link arrives.
+  useEffect(() => {
+    if (symbolParam && symbolParam !== symbol) setSymbol(symbolParam);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [symbolParam]);
+
+  const handleSymbol = (next: string) => {
+    setSymbol(next);
+    navigate({ to: "/", search: { symbol: next }, replace: true });
+  };
   const [count, setCount] = useState(DEFAULT_TICK_COUNT);
   const [suppressChoppy, setSuppressChoppy] = useState(true);
   const [minStrength, setMinStrength] = useState(0);
