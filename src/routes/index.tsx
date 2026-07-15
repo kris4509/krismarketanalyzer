@@ -1,12 +1,14 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/analysis/AppHeader";
 import { BotPromoBanner } from "@/components/analysis/BotPromoBanner";
 import { Controls } from "@/components/analysis/Controls";
 import { DigitCircles } from "@/components/analysis/DigitCircles";
+import { EvenOddDominance } from "@/components/analysis/EvenOddDominance";
 import { TickChart } from "@/components/analysis/TickChart";
 import { ValidSignalsPanel } from "@/components/analysis/ValidSignalsPanel";
 import { computeDigitStats, lastDigit } from "@/lib/deriv/analysis";
+import { evenPctFromStats } from "@/lib/deriv/dominance";
 import { computeRegime } from "@/lib/deriv/regime";
 import {
   DEFAULT_SYMBOL,
@@ -17,6 +19,9 @@ import { useDerivTicks } from "@/lib/deriv/useDerivTicks";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    symbol: typeof search.symbol === "string" ? search.symbol : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Digit Pulse — Live Deriv Last-Digit Analyzer" },
@@ -37,7 +42,20 @@ export const Route = createFileRoute("/")({
 });
 
 function Index() {
-  const [symbol, setSymbol] = useState(DEFAULT_SYMBOL);
+  const { symbol: symbolParam } = Route.useSearch();
+  const navigate = useNavigate();
+  const [symbol, setSymbol] = useState(symbolParam ?? DEFAULT_SYMBOL);
+
+  // Keep URL and internal state in sync when a deep link arrives.
+  useEffect(() => {
+    if (symbolParam && symbolParam !== symbol) setSymbol(symbolParam);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [symbolParam]);
+
+  const handleSymbol = (next: string) => {
+    setSymbol(next);
+    navigate({ to: "/", search: { symbol: next }, replace: true });
+  };
   const [count, setCount] = useState(DEFAULT_TICK_COUNT);
   const [suppressChoppy, setSuppressChoppy] = useState(true);
   const [minStrength, setMinStrength] = useState(0);
@@ -74,7 +92,7 @@ function Index() {
       <main className="mx-auto max-w-7xl space-y-6 px-3 py-5 sm:px-6 sm:py-6">
         <Controls
           symbol={symbol}
-          onSymbol={setSymbol}
+          onSymbol={handleSymbol}
           count={count}
           onCount={setCount}
           state={state}
@@ -133,6 +151,10 @@ function Index() {
           </div>
 
           <aside className="min-w-0 space-y-4">
+            <EvenOddDominance
+              evenPct={evenPctFromStats(stats)}
+              tickKey={ticks.length}
+            />
             <RegimeCard
               regime={regime}
               suppress={suppressChoppy}

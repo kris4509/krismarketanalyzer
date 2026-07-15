@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppHeader } from "@/components/analysis/AppHeader";
+import { EvenOddMarketScanner } from "@/components/analysis/EvenOddMarketScanner";
 import { cn } from "@/lib/utils";
 import {
   PERSIST_MS,
@@ -386,6 +387,10 @@ function ScannerPage() {
             </div>
           </div>
         </section>
+
+        {/* ─── Even/Odd market ranking across all monitored markets ─── */}
+        <EvenOddMarketScanner symbols={SCAN_SYMBOLS} feeds={feeds} />
+
 
         {/* ─── Scanner mode tabs ─── */}
         <section className="rounded-lg border border-border bg-card p-2">
