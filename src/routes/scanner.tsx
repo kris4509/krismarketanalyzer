@@ -388,6 +388,10 @@ function ScannerPage() {
           </div>
         </section>
 
+        {/* ─── Even/Odd market ranking across all monitored markets ─── */}
+        <EvenOddMarketScanner symbols={SCAN_SYMBOLS} feeds={feeds} />
+
+
         {/* ─── Scanner mode tabs ─── */}
         <section className="rounded-lg border border-border bg-card p-2">
           <div className="mb-1.5 px-1 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
