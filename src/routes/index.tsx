@@ -151,6 +151,10 @@ function Index() {
           </div>
 
           <aside className="min-w-0 space-y-4">
+            <EvenOddDominance
+              evenPct={evenPctFromStats(stats)}
+              tickKey={ticks.length}
+            />
             <RegimeCard
               regime={regime}
               suppress={suppressChoppy}
