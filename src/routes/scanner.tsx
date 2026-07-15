@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppHeader } from "@/components/analysis/AppHeader";
+import { EvenOddMarketScanner } from "@/components/analysis/EvenOddMarketScanner";
 import { cn } from "@/lib/utils";
 import {
   PERSIST_MS,
