@@ -92,7 +92,7 @@ function Index() {
       <main className="mx-auto max-w-7xl space-y-6 px-3 py-5 sm:px-6 sm:py-6">
         <Controls
           symbol={symbol}
-          onSymbol={setSymbol}
+          onSymbol={handleSymbol}
           count={count}
           onCount={setCount}
           state={state}
