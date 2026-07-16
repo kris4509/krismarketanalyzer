@@ -417,57 +417,59 @@ function ScannerPage() {
 
         {/* ─── Scanner mode tabs (only when >1 mode is available) ─── */}
         {availableModes.length > 1 && (
-          <div className="mb-1.5 px-1 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-            Scanner
-          </div>
-          <div className="grid gap-1 sm:grid-cols-2 lg:grid-cols-4">
-            {availableModes.map((m) => {
-              const info = SCANNERS[m];
-              const active = m === mode;
-              const cs = crossSignals[m];
-              const totalCount = cs.locked + cs.fresh;
-              return (
-                <button
-                  key={m}
-                  onClick={() => setMode(m)}
-                  className={cn(
-                    "relative rounded-md px-3 py-2 text-left transition-colors",
-                    active
-                      ? "bg-primary text-primary-foreground shadow-[var(--shadow-glow)]"
-                      : "text-muted-foreground hover:bg-secondary/40 hover:text-foreground",
-                  )}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="font-mono text-xs font-bold uppercase tracking-wider">
-                      {info.label}
-                    </div>
-                    {totalCount > 0 && (
-                      <span
-                        className={cn(
-                          "rounded-full px-1.5 py-0.5 font-mono text-[10px] font-bold tabular-nums",
-                          cs.locked > 0
-                            ? "bg-[var(--rank-most)] text-background"
-                            : "bg-[var(--rank-second)] text-background",
-                        )}
-                        title={`${cs.locked} locked · ${cs.fresh} fresh`}
-                      >
-                        {cs.locked > 0 ? `● ${cs.locked}` : cs.fresh}
-                      </span>
-                    )}
-                  </div>
-                  <div
+          <section className="rounded-lg border border-border bg-card p-2">
+            <div className="mb-1.5 px-1 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+              Scanner
+            </div>
+            <div className="grid gap-1 sm:grid-cols-2 lg:grid-cols-4">
+              {availableModes.map((m) => {
+                const info = SCANNERS[m];
+                const active = m === mode;
+                const cs = crossSignals[m];
+                const totalCount = cs.locked + cs.fresh;
+                return (
+                  <button
+                    key={m}
+                    onClick={() => setMode(m)}
                     className={cn(
-                      "mt-0.5 font-mono text-[10px]",
-                      active ? "text-primary-foreground/80" : "text-muted-foreground",
+                      "relative rounded-md px-3 py-2 text-left transition-colors",
+                      active
+                        ? "bg-primary text-primary-foreground shadow-[var(--shadow-glow)]"
+                        : "text-muted-foreground hover:bg-secondary/40 hover:text-foreground",
                     )}
                   >
-                    {info.sub}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </section>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="font-mono text-xs font-bold uppercase tracking-wider">
+                        {info.label}
+                      </div>
+                      {totalCount > 0 && (
+                        <span
+                          className={cn(
+                            "rounded-full px-1.5 py-0.5 font-mono text-[10px] font-bold tabular-nums",
+                            cs.locked > 0
+                              ? "bg-[var(--rank-most)] text-background"
+                              : "bg-[var(--rank-second)] text-background",
+                          )}
+                          title={`${cs.locked} locked · ${cs.fresh} fresh`}
+                        >
+                          {cs.locked > 0 ? `● ${cs.locked}` : cs.fresh}
+                        </span>
+                      )}
+                    </div>
+                    <div
+                      className={cn(
+                        "mt-0.5 font-mono text-[10px]",
+                        active ? "text-primary-foreground/80" : "text-muted-foreground",
+                      )}
+                    >
+                      {info.sub}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
         {/* ─── Sub-strategy selector (Even/Odd only) ─── */}
         {activeScanner.hasStrategies && (
