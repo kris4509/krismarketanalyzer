@@ -29,6 +29,10 @@ type Row = {
   duration: number;
   ticksLen: number;
   shift: { from: DominanceSide; to: DominanceSide; at: number } | null;
+  stats: DigitStat[] | null;
+  currentDigit: number | null;
+  ticks: Tick[];
+  pip: number;
 };
 
 function Stars({ n }: { n: number }) {
