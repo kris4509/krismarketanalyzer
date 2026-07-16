@@ -340,3 +340,48 @@ function MarketCard({ row, onOpen }: { row: Row; onOpen: () => void }) {
     </div>
   );
 }
+
+const rankBorder: Record<DigitStat["rank"], string> = {
+  most: "border-[var(--rank-most)] text-[var(--rank-most)]",
+  second: "border-[var(--rank-second)] text-[var(--rank-second)]",
+  "second-least": "border-[var(--rank-second-least)] text-[var(--rank-second-least)]",
+  least: "border-[var(--rank-least)] text-[var(--rank-least)]",
+  mid: "border-border text-muted-foreground",
+};
+
+function MiniDigitCircles({
+  stats,
+  currentDigit,
+}: {
+  stats: DigitStat[];
+  currentDigit: number | null;
+}) {
+  return (
+    <div className="flex flex-wrap items-end justify-center gap-1.5">
+      {stats.map((s) => {
+        const active = s.digit === currentDigit;
+        return (
+          <div key={s.digit} className="flex flex-col items-center gap-0.5">
+            <div
+              className={cn(
+                "flex h-7 w-7 items-center justify-center rounded-full border bg-card font-mono text-[13px] font-bold transition-all",
+                rankBorder[s.rank],
+                active && "scale-110 ring-1 ring-foreground/60",
+              )}
+            >
+              {s.digit}
+            </div>
+            <span
+              className={cn(
+                "font-mono text-[9px] tabular-nums",
+                rankBorder[s.rank].split(" ")[1],
+              )}
+            >
+              {s.percent.toFixed(1)}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
