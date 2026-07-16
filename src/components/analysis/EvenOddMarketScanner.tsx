@@ -13,7 +13,6 @@ import {
   type DominanceSide,
   type DominanceTrend,
 } from "@/lib/deriv/dominance";
-import { DERIV_SYMBOLS } from "@/lib/deriv/symbols";
 import type { Tick } from "@/lib/deriv/useDerivTicks";
 import type { SymbolFeed } from "@/lib/deriv/useMultiDerivTicks";
 
