@@ -15,7 +15,6 @@ import {
 } from "@/lib/deriv/dominance";
 import { DERIV_SYMBOLS } from "@/lib/deriv/symbols";
 import type { Tick } from "@/lib/deriv/useDerivTicks";
-import { TickChart } from "@/components/analysis/TickChart";
 import type { SymbolFeed } from "@/lib/deriv/useMultiDerivTicks";
 
 const HISTORY_LIMIT = 30;
