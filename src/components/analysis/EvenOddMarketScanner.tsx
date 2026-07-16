@@ -253,6 +253,21 @@ function MarketCard({ row, onOpen }: { row: Row; onOpen: () => void }) {
         </div>
       )}
 
+      {/* Compact tick chart — shows how the price/digit jumps over time */}
+      {row.ticks.length > 1 && (
+        <div className="mt-3 -mx-1 h-20 overflow-hidden rounded-md bg-background/40">
+          <TickChart ticks={row.ticks.slice(-60)} pip={row.pip} />
+        </div>
+      )}
+
+      {/* Digit circles — same style as the analyzer page */}
+      {row.stats && (
+        <div className="mt-3">
+          <MiniDigitCircles stats={row.stats} currentDigit={row.currentDigit} />
+        </div>
+      )}
+
+
       <div className="mt-3 grid grid-cols-2 gap-2 font-mono text-[11px]">
         <div>
           <div className="text-[9px] uppercase tracking-widest text-muted-foreground">
