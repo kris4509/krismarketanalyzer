@@ -1,6 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
+import { computeDigitStats, lastDigit, type DigitStat } from "@/lib/deriv/analysis";
 import {
   computeDominance,
   computeTrend,
@@ -13,6 +14,8 @@ import {
   type DominanceTrend,
 } from "@/lib/deriv/dominance";
 import { DERIV_SYMBOLS } from "@/lib/deriv/symbols";
+import type { Tick } from "@/lib/deriv/useDerivTicks";
+import { TickChart } from "@/components/analysis/TickChart";
 import type { SymbolFeed } from "@/lib/deriv/useMultiDerivTicks";
 
 const HISTORY_LIMIT = 30;
