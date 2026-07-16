@@ -381,7 +381,7 @@ function ScannerPage() {
         <section className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h2 className="font-mono text-2xl font-bold tracking-tight sm:text-3xl">
-              {activeScanner.label} Scanner
+              {VARIANT_LABEL[variant]} Scanner
             </h2>
             <p className="text-sm text-muted-foreground">
               Monitoring all {SCAN_SYMBOLS.length} 1s volatility markets.{" "}
@@ -411,11 +411,12 @@ function ScannerPage() {
         </section>
 
         {/* ─── Even/Odd market ranking across all monitored markets ─── */}
-        <EvenOddMarketScanner symbols={SCAN_SYMBOLS} feeds={feeds} />
+        {variant === "even-odd" && (
+          <EvenOddMarketScanner symbols={SCAN_SYMBOLS} feeds={feeds} />
+        )}
 
-
-        {/* ─── Scanner mode tabs ─── */}
-        <section className="rounded-lg border border-border bg-card p-2">
+        {/* ─── Scanner mode tabs (only when >1 mode is available) ─── */}
+        {availableModes.length > 1 && (
           <div className="mb-1.5 px-1 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
             Scanner
           </div>
