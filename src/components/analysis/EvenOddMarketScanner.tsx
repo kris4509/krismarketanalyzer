@@ -253,10 +253,10 @@ function MarketCard({ row, onOpen }: { row: Row; onOpen: () => void }) {
         </div>
       )}
 
-      {/* Compact tick chart — shows how the price/digit jumps over time */}
+      {/* Mini price cursor — shows how the price/digit jumps over time */}
       {row.ticks.length > 1 && (
-        <div className="mt-3 -mx-1 h-20 overflow-hidden rounded-md bg-background/40">
-          <TickChart ticks={row.ticks.slice(-60)} pip={row.pip} />
+        <div className="mt-3">
+          <PriceCursor ticks={row.ticks} pip={row.pip} />
         </div>
       )}
 
