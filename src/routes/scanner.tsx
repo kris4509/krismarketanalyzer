@@ -86,7 +86,7 @@ export const Route = createFileRoute("/scanner")({
 });
 
 function ScannerPage() {
-  const { variant } = Route.useSearch();
+  const { variant } = Route.useSearch() as { variant: ScannerVariant };
   const availableModes = VARIANT_MODES[variant];
   const [count, setCount] = useState(DEFAULT_TICK_COUNT);
   const [mode, setMode] = useState<ScannerMode>(availableModes[0]);
