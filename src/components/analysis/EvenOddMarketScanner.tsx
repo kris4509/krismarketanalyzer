@@ -385,3 +385,42 @@ function MiniDigitCircles({
     </div>
   );
 }
+
+function PriceCursor({ ticks, pip }: { ticks: Tick[]; pip: number }) {
+  const slice = ticks.slice(-80);
+  const quotes = slice.map((t) => t.quote);
+  const min = Math.min(...quotes);
+  const max = Math.max(...quotes);
+  const range = max - min || 1;
+  const w = 260;
+  const h = 56;
+  const step = quotes.length > 1 ? w / (quotes.length - 1) : w;
+  const points = quotes
+    .map((q, i) => `${i * step},${h - ((q - min) / range) * h}`)
+    .join(" ");
+  const last = quotes[quotes.length - 1];
+  const cursorY = h - ((last - min) / range) * h;
+  return (
+    <div className="relative rounded-md border border-border bg-background/40 p-1">
+      <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="h-14 w-full">
+        <polyline
+          fill="none"
+          stroke="var(--chart-line)"
+          strokeWidth="1.5"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          points={points}
+        />
+        <circle
+          cx={w}
+          cy={cursorY}
+          r={3}
+          fill="var(--primary)"
+        />
+      </svg>
+      <div className="absolute right-2 top-1 rounded bg-primary/90 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-primary-foreground">
+        {last.toFixed(pip)}
+      </div>
+    </div>
+  );
+}
