@@ -218,10 +218,10 @@ function ScannerPage() {
       ScannerMode,
       { locked: number; fresh: number; signals: TrackedSignal[] }
     >;
-    for (const m of SCANNER_MODES) {
+    for (const m of availableModes) {
       out[m] = { locked: 0, fresh: 0, signals: [] };
     }
-    for (const m of SCANNER_MODES) {
+    for (const m of availableModes) {
       if (m === mode) {
         // reuse the already-computed tracked list for the active mode
         for (const t of tracked) {
@@ -332,7 +332,7 @@ function ScannerPage() {
   // ─── Fire notifications across ALL scanners when a signal locks ───
   // Build a stable key listing every currently-locked (mode, symbol, direction).
   const allLocked: Array<{ mode: ScannerMode; sig: TrackedSignal }> = [];
-  for (const m of SCANNER_MODES) {
+  for (const m of availableModes) {
     for (const s of crossSignals[m].signals) {
       if (s.persistent) allLocked.push({ mode: m, sig: s });
     }
@@ -420,7 +420,7 @@ function ScannerPage() {
             Scanner
           </div>
           <div className="grid gap-1 sm:grid-cols-2 lg:grid-cols-4">
-            {SCANNER_MODES.map((m) => {
+            {availableModes.map((m) => {
               const info = SCANNERS[m];
               const active = m === mode;
               const cs = crossSignals[m];
@@ -728,7 +728,7 @@ function CrossScannerBanner({
   >;
   onJump: (m: ScannerMode) => void;
 }) {
-  const others = SCANNER_MODES.filter((m) => m !== mode);
+  const others = availableModes.filter((m) => m !== mode);
   const anyLocked = others.some((m) => crossSignals[m].locked > 0);
   const anyFresh = others.some((m) => crossSignals[m].fresh > 0);
   if (!anyLocked && !anyFresh) return null;
