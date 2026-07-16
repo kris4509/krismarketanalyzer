@@ -718,17 +718,19 @@ function ScannerPage() {
 
 function CrossScannerBanner({
   mode,
+  modes,
   crossSignals,
   onJump,
 }: {
   mode: ScannerMode;
+  modes: ScannerMode[];
   crossSignals: Record<
     ScannerMode,
     { locked: number; fresh: number; signals: TrackedSignal[] }
   >;
   onJump: (m: ScannerMode) => void;
 }) {
-  const others = availableModes.filter((m) => m !== mode);
+  const others = modes.filter((m) => m !== mode);
   const anyLocked = others.some((m) => crossSignals[m].locked > 0);
   const anyFresh = others.some((m) => crossSignals[m].fresh > 0);
   if (!anyLocked && !anyFresh) return null;
