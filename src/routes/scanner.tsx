@@ -509,6 +509,7 @@ function ScannerPage() {
         {/* ─── Cross-scanner banner: locked signals on OTHER scanners ─── */}
         <CrossScannerBanner
           mode={mode}
+          modes={availableModes}
           crossSignals={crossSignals}
           onJump={setMode}
         />
