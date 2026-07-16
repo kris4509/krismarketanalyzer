@@ -117,6 +117,10 @@ export function EvenOddMarketScanner({
       const shift = shiftRef.current.get(meta.code) ?? null;
       const shiftFresh = shift && now - shift.at < SHIFT_FLASH_MS ? shift : null;
 
+      const stats = ticks.length >= 20 ? computeDigitStats(ticks, pip) : null;
+      const lastQuote = ticks[ticks.length - 1]?.quote ?? null;
+      const currentDigit = lastQuote !== null ? lastDigit(lastQuote, pip) : null;
+
       out.push({
         code: meta.code,
         label: meta.label,
@@ -125,6 +129,10 @@ export function EvenOddMarketScanner({
         duration,
         ticksLen: ticks.length,
         shift: shiftFresh,
+        stats,
+        currentDigit,
+        ticks,
+        pip,
       });
     }
     // Sort strongest first (highest diff), neutrals last.
