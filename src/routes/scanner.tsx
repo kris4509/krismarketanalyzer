@@ -56,7 +56,22 @@ function directionTone(direction: string) {
   };
 }
 
+type ScannerVariant = "even-odd" | "over-under";
+
+const VARIANT_MODES: Record<ScannerVariant, ScannerMode[]> = {
+  "even-odd": ["even-odd"],
+  "over-under": ["under-8", "under-7", "under-9", "under-9-c4", "over-1", "over-2", "over-3"],
+};
+
+const VARIANT_LABEL: Record<ScannerVariant, string> = {
+  "even-odd": "Even / Odd",
+  "over-under": "Over / Under",
+};
+
 export const Route = createFileRoute("/scanner")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    variant: (search.variant === "over-under" ? "over-under" : "even-odd") as ScannerVariant,
+  }),
   head: () => ({
     meta: [
       { title: "Digit Scanner — Even/Odd · Under · Over" },
@@ -71,8 +86,15 @@ export const Route = createFileRoute("/scanner")({
 });
 
 function ScannerPage() {
+  const { variant } = Route.useSearch();
+  const availableModes = VARIANT_MODES[variant];
   const [count, setCount] = useState(DEFAULT_TICK_COUNT);
-  const [mode, setMode] = useState<ScannerMode>("even-odd");
+  const [mode, setMode] = useState<ScannerMode>(availableModes[0]);
+  // Keep current mode inside the active variant when user switches pages.
+  useEffect(() => {
+    if (!availableModes.includes(mode)) setMode(availableModes[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [variant]);
   const [strategy, setStrategy] = useState<EvenOddStrategy>("rank-alignment");
   const [persistMs, setPersistMs] = useState(PERSIST_MS);
   const [minStrength, setMinStrength] = useState(0);
