@@ -5,7 +5,7 @@
 export function BotPromoBanner() {
   return (
     <a
-      href="https://printpesa.netlify.app/"
+      href="https://printpesa.vercel.app/"
       target="_blank"
       rel="noopener noreferrer"
       className="group block overflow-hidden rounded-xl border border-[var(--rank-most)]/40 bg-gradient-to-r from-[var(--rank-most)]/10 via-card to-[var(--rank-second)]/10 p-4 transition-shadow hover:shadow-[var(--shadow-glow)]"
@@ -18,7 +18,7 @@ export function BotPromoBanner() {
           <p className="mt-1 font-mono text-sm font-semibold text-foreground sm:text-base">
             Trade &amp; grab free bots at{" "}
             <span className="underline underline-offset-4">
-              printpesa.netlify.app
+              printpesa.vercel.app
             </span>
           </p>
           <p className="mt-1 text-[11px] text-muted-foreground">

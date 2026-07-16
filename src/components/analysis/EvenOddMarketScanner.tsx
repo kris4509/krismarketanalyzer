@@ -1,6 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
+import { computeDigitStats, lastDigit, type DigitStat } from "@/lib/deriv/analysis";
 import {
   computeDominance,
   computeTrend,
@@ -12,7 +13,7 @@ import {
   type DominanceSide,
   type DominanceTrend,
 } from "@/lib/deriv/dominance";
-import { DERIV_SYMBOLS } from "@/lib/deriv/symbols";
+import type { Tick } from "@/lib/deriv/useDerivTicks";
 import type { SymbolFeed } from "@/lib/deriv/useMultiDerivTicks";
 
 const HISTORY_LIMIT = 30;
@@ -26,6 +27,10 @@ type Row = {
   duration: number;
   ticksLen: number;
   shift: { from: DominanceSide; to: DominanceSide; at: number } | null;
+  stats: DigitStat[] | null;
+  currentDigit: number | null;
+  ticks: Tick[];
+  pip: number;
 };
 
 function Stars({ n }: { n: number }) {
@@ -110,6 +115,10 @@ export function EvenOddMarketScanner({
       const shift = shiftRef.current.get(meta.code) ?? null;
       const shiftFresh = shift && now - shift.at < SHIFT_FLASH_MS ? shift : null;
 
+      const stats = ticks.length >= 20 ? computeDigitStats(ticks, pip) : null;
+      const lastQuote = ticks[ticks.length - 1]?.quote ?? null;
+      const currentDigit = lastQuote !== null ? lastDigit(lastQuote, pip) : null;
+
       out.push({
         code: meta.code,
         label: meta.label,
@@ -118,6 +127,10 @@ export function EvenOddMarketScanner({
         duration,
         ticksLen: ticks.length,
         shift: shiftFresh,
+        stats,
+        currentDigit,
+        ticks,
+        pip,
       });
     }
     // Sort strongest first (highest diff), neutrals last.
@@ -238,6 +251,21 @@ function MarketCard({ row, onOpen }: { row: Row; onOpen: () => void }) {
         </div>
       )}
 
+      {/* Mini price cursor — shows how the price/digit jumps over time */}
+      {row.ticks.length > 1 && (
+        <div className="mt-3">
+          <PriceCursor ticks={row.ticks} pip={row.pip} />
+        </div>
+      )}
+
+      {/* Digit circles — same style as the analyzer page */}
+      {row.stats && (
+        <div className="mt-3">
+          <MiniDigitCircles stats={row.stats} currentDigit={row.currentDigit} />
+        </div>
+      )}
+
+
       <div className="mt-3 grid grid-cols-2 gap-2 font-mono text-[11px]">
         <div>
           <div className="text-[9px] uppercase tracking-widest text-muted-foreground">
@@ -307,6 +335,90 @@ function MarketCard({ row, onOpen }: { row: Row; onOpen: () => void }) {
       >
         Open Analyzer →
       </button>
+    </div>
+  );
+}
+
+const rankBorder: Record<DigitStat["rank"], string> = {
+  most: "border-[var(--rank-most)] text-[var(--rank-most)]",
+  second: "border-[var(--rank-second)] text-[var(--rank-second)]",
+  "second-least": "border-[var(--rank-second-least)] text-[var(--rank-second-least)]",
+  least: "border-[var(--rank-least)] text-[var(--rank-least)]",
+  mid: "border-border text-muted-foreground",
+};
+
+function MiniDigitCircles({
+  stats,
+  currentDigit,
+}: {
+  stats: DigitStat[];
+  currentDigit: number | null;
+}) {
+  return (
+    <div className="flex flex-wrap items-end justify-center gap-1.5">
+      {stats.map((s) => {
+        const active = s.digit === currentDigit;
+        return (
+          <div key={s.digit} className="flex flex-col items-center gap-0.5">
+            <div
+              className={cn(
+                "flex h-7 w-7 items-center justify-center rounded-full border bg-card font-mono text-[13px] font-bold transition-all",
+                rankBorder[s.rank],
+                active && "scale-110 ring-1 ring-foreground/60",
+              )}
+            >
+              {s.digit}
+            </div>
+            <span
+              className={cn(
+                "font-mono text-[9px] tabular-nums",
+                rankBorder[s.rank].split(" ")[1],
+              )}
+            >
+              {s.percent.toFixed(1)}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function PriceCursor({ ticks, pip }: { ticks: Tick[]; pip: number }) {
+  const slice = ticks.slice(-80);
+  const quotes = slice.map((t) => t.quote);
+  const min = Math.min(...quotes);
+  const max = Math.max(...quotes);
+  const range = max - min || 1;
+  const w = 260;
+  const h = 56;
+  const step = quotes.length > 1 ? w / (quotes.length - 1) : w;
+  const points = quotes
+    .map((q, i) => `${i * step},${h - ((q - min) / range) * h}`)
+    .join(" ");
+  const last = quotes[quotes.length - 1];
+  const cursorY = h - ((last - min) / range) * h;
+  return (
+    <div className="relative rounded-md border border-border bg-background/40 p-1">
+      <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="h-14 w-full">
+        <polyline
+          fill="none"
+          stroke="var(--chart-line)"
+          strokeWidth="1.5"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          points={points}
+        />
+        <circle
+          cx={w}
+          cy={cursorY}
+          r={3}
+          fill="var(--primary)"
+        />
+      </svg>
+      <div className="absolute right-2 top-1 rounded bg-primary/90 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-primary-foreground">
+        {last.toFixed(pip)}
+      </div>
     </div>
   );
 }

@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import {
   PERSIST_MS,
   SCANNERS,
-  SCANNER_MODES,
+
   STRATEGIES,
   type EvenOddSignal,
   type EvenOddStrategy,
@@ -56,7 +56,22 @@ function directionTone(direction: string) {
   };
 }
 
+type ScannerVariant = "even-odd" | "over-under";
+
+const VARIANT_MODES: Record<ScannerVariant, ScannerMode[]> = {
+  "even-odd": ["even-odd"],
+  "over-under": ["under-8", "under-7", "under-9", "under-9-c4", "over-1", "over-2", "over-3"],
+};
+
+const VARIANT_LABEL: Record<ScannerVariant, string> = {
+  "even-odd": "Even / Odd",
+  "over-under": "Over / Under",
+};
+
 export const Route = createFileRoute("/scanner")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    variant: (search.variant === "over-under" ? "over-under" : "even-odd") as ScannerVariant,
+  }),
   head: () => ({
     meta: [
       { title: "Digit Scanner — Even/Odd · Under · Over" },
@@ -71,8 +86,15 @@ export const Route = createFileRoute("/scanner")({
 });
 
 function ScannerPage() {
+  const { variant } = Route.useSearch() as { variant: ScannerVariant };
+  const availableModes = VARIANT_MODES[variant];
   const [count, setCount] = useState(DEFAULT_TICK_COUNT);
-  const [mode, setMode] = useState<ScannerMode>("even-odd");
+  const [mode, setMode] = useState<ScannerMode>(availableModes[0]);
+  // Keep current mode inside the active variant when user switches pages.
+  useEffect(() => {
+    if (!availableModes.includes(mode)) setMode(availableModes[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [variant]);
   const [strategy, setStrategy] = useState<EvenOddStrategy>("rank-alignment");
   const [persistMs, setPersistMs] = useState(PERSIST_MS);
   const [minStrength, setMinStrength] = useState(0);
@@ -196,10 +218,10 @@ function ScannerPage() {
       ScannerMode,
       { locked: number; fresh: number; signals: TrackedSignal[] }
     >;
-    for (const m of SCANNER_MODES) {
+    for (const m of availableModes) {
       out[m] = { locked: 0, fresh: 0, signals: [] };
     }
-    for (const m of SCANNER_MODES) {
+    for (const m of availableModes) {
       if (m === mode) {
         // reuse the already-computed tracked list for the active mode
         for (const t of tracked) {
@@ -310,7 +332,7 @@ function ScannerPage() {
   // ─── Fire notifications across ALL scanners when a signal locks ───
   // Build a stable key listing every currently-locked (mode, symbol, direction).
   const allLocked: Array<{ mode: ScannerMode; sig: TrackedSignal }> = [];
-  for (const m of SCANNER_MODES) {
+  for (const m of availableModes) {
     for (const s of crossSignals[m].signals) {
       if (s.persistent) allLocked.push({ mode: m, sig: s });
     }
@@ -359,7 +381,7 @@ function ScannerPage() {
         <section className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h2 className="font-mono text-2xl font-bold tracking-tight sm:text-3xl">
-              {activeScanner.label} Scanner
+              {VARIANT_LABEL[variant]} Scanner
             </h2>
             <p className="text-sm text-muted-foreground">
               Monitoring all {SCAN_SYMBOLS.length} 1s volatility markets.{" "}
@@ -389,62 +411,65 @@ function ScannerPage() {
         </section>
 
         {/* ─── Even/Odd market ranking across all monitored markets ─── */}
-        <EvenOddMarketScanner symbols={SCAN_SYMBOLS} feeds={feeds} />
+        {variant === "even-odd" && (
+          <EvenOddMarketScanner symbols={SCAN_SYMBOLS} feeds={feeds} />
+        )}
 
-
-        {/* ─── Scanner mode tabs ─── */}
-        <section className="rounded-lg border border-border bg-card p-2">
-          <div className="mb-1.5 px-1 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-            Scanner
-          </div>
-          <div className="grid gap-1 sm:grid-cols-2 lg:grid-cols-4">
-            {SCANNER_MODES.map((m) => {
-              const info = SCANNERS[m];
-              const active = m === mode;
-              const cs = crossSignals[m];
-              const totalCount = cs.locked + cs.fresh;
-              return (
-                <button
-                  key={m}
-                  onClick={() => setMode(m)}
-                  className={cn(
-                    "relative rounded-md px-3 py-2 text-left transition-colors",
-                    active
-                      ? "bg-primary text-primary-foreground shadow-[var(--shadow-glow)]"
-                      : "text-muted-foreground hover:bg-secondary/40 hover:text-foreground",
-                  )}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="font-mono text-xs font-bold uppercase tracking-wider">
-                      {info.label}
-                    </div>
-                    {totalCount > 0 && (
-                      <span
-                        className={cn(
-                          "rounded-full px-1.5 py-0.5 font-mono text-[10px] font-bold tabular-nums",
-                          cs.locked > 0
-                            ? "bg-[var(--rank-most)] text-background"
-                            : "bg-[var(--rank-second)] text-background",
-                        )}
-                        title={`${cs.locked} locked · ${cs.fresh} fresh`}
-                      >
-                        {cs.locked > 0 ? `● ${cs.locked}` : cs.fresh}
-                      </span>
-                    )}
-                  </div>
-                  <div
+        {/* ─── Scanner mode tabs (only when >1 mode is available) ─── */}
+        {availableModes.length > 1 && (
+          <section className="rounded-lg border border-border bg-card p-2">
+            <div className="mb-1.5 px-1 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+              Scanner
+            </div>
+            <div className="grid gap-1 sm:grid-cols-2 lg:grid-cols-4">
+              {availableModes.map((m) => {
+                const info = SCANNERS[m];
+                const active = m === mode;
+                const cs = crossSignals[m];
+                const totalCount = cs.locked + cs.fresh;
+                return (
+                  <button
+                    key={m}
+                    onClick={() => setMode(m)}
                     className={cn(
-                      "mt-0.5 font-mono text-[10px]",
-                      active ? "text-primary-foreground/80" : "text-muted-foreground",
+                      "relative rounded-md px-3 py-2 text-left transition-colors",
+                      active
+                        ? "bg-primary text-primary-foreground shadow-[var(--shadow-glow)]"
+                        : "text-muted-foreground hover:bg-secondary/40 hover:text-foreground",
                     )}
                   >
-                    {info.sub}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </section>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="font-mono text-xs font-bold uppercase tracking-wider">
+                        {info.label}
+                      </div>
+                      {totalCount > 0 && (
+                        <span
+                          className={cn(
+                            "rounded-full px-1.5 py-0.5 font-mono text-[10px] font-bold tabular-nums",
+                            cs.locked > 0
+                              ? "bg-[var(--rank-most)] text-background"
+                              : "bg-[var(--rank-second)] text-background",
+                          )}
+                          title={`${cs.locked} locked · ${cs.fresh} fresh`}
+                        >
+                          {cs.locked > 0 ? `● ${cs.locked}` : cs.fresh}
+                        </span>
+                      )}
+                    </div>
+                    <div
+                      className={cn(
+                        "mt-0.5 font-mono text-[10px]",
+                        active ? "text-primary-foreground/80" : "text-muted-foreground",
+                      )}
+                    >
+                      {info.sub}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
         {/* ─── Sub-strategy selector (Even/Odd only) ─── */}
         {activeScanner.hasStrategies && (
@@ -487,6 +512,7 @@ function ScannerPage() {
         {/* ─── Cross-scanner banner: locked signals on OTHER scanners ─── */}
         <CrossScannerBanner
           mode={mode}
+          modes={availableModes}
           crossSignals={crossSignals}
           onJump={setMode}
         />
@@ -696,17 +722,19 @@ function ScannerPage() {
 
 function CrossScannerBanner({
   mode,
+  modes,
   crossSignals,
   onJump,
 }: {
   mode: ScannerMode;
+  modes: ScannerMode[];
   crossSignals: Record<
     ScannerMode,
     { locked: number; fresh: number; signals: TrackedSignal[] }
   >;
   onJump: (m: ScannerMode) => void;
 }) {
-  const others = SCANNER_MODES.filter((m) => m !== mode);
+  const others = modes.filter((m) => m !== mode);
   const anyLocked = others.some((m) => crossSignals[m].locked > 0);
   const anyFresh = others.some((m) => crossSignals[m].fresh > 0);
   if (!anyLocked && !anyFresh) return null;
