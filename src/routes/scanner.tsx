@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import {
   PERSIST_MS,
   SCANNERS,
-  SCANNER_MODES,
+
   STRATEGIES,
   type EvenOddSignal,
   type EvenOddStrategy,
