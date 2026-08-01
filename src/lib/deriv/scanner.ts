@@ -9,7 +9,12 @@ export type ScannerMode =
   | "under-9-c4"
   | "over-2"
   | "over-3"
-  | "over-1";
+  | "over-1"
+  | "under-hnr"
+  | "over-hnr"
+  | "under-destroyer"
+  | "over-destroyer";
+
 
 export type EvenOddSignal = {
   symbol: string;
