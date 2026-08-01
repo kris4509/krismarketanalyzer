@@ -529,7 +529,36 @@ export const SCANNERS: Record<ScannerMode, ScannerInfo> = {
     detect: detectOver3,
     hasStrategies: false,
   },
+  "under-hnr": {
+    mode: "under-hnr",
+    label: "Under HnR",
+    sub: "8 & 9 below 10% · no Green/Red on 8 or 9",
+    detect: detectUnderHnR,
+    hasStrategies: false,
+  },
+  "over-hnr": {
+    mode: "over-hnr",
+    label: "Over HnR",
+    sub: "0 & 1 below 10% · no Green/Red on 0 or 1",
+    detect: detectOverHnR,
+    hasStrategies: false,
+  },
+  "under-destroyer": {
+    mode: "under-destroyer",
+    label: "Under Destroyer",
+    sub: "7/8/9 below 10% (no G/R) · 6 below 10.5%",
+    detect: detectUnderDestroyer,
+    hasStrategies: false,
+  },
+  "over-destroyer": {
+    mode: "over-destroyer",
+    label: "Over Destroyer",
+    sub: "0/1/2 below 10% (no G/R) · 3 below 10.5% · G+R not both on 5/6",
+    detect: detectOverDestroyer,
+    hasStrategies: false,
+  },
 };
+
 
 export const SCANNER_MODES: ScannerMode[] = [
   "even-odd",
