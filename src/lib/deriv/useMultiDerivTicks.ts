@@ -81,7 +81,7 @@ export function useMultiDerivTicks(symbols: string[], count: number) {
         setState("open");
         attempt = 0;
         lastMsgAt = Date.now();
-        symbols.forEach(requestHistory);
+        symbols.forEach((symbol) => requestHistory(symbol));
 
         // Public synthetic streams are currently rejected by Deriv. Polling
         // the latest tick keeps every scanner market live on the same socket.
