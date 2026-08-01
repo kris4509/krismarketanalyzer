@@ -31,12 +31,14 @@ export function useMultiDerivTicks(symbols: string[], count: number) {
     let closed = false;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let pingTimer: ReturnType<typeof setInterval> | null = null;
+    let tickTimer: ReturnType<typeof setInterval> | null = null;
     let staleTimer: ReturnType<typeof setInterval> | null = null;
     let lastMsgAt = Date.now();
     let attempt = 0;
 
     const clearTimers = () => {
       if (pingTimer) { clearInterval(pingTimer); pingTimer = null; }
+      if (tickTimer) { clearInterval(tickTimer); tickTimer = null; }
       if (staleTimer) { clearInterval(staleTimer); staleTimer = null; }
     };
 
@@ -57,17 +59,16 @@ export function useMultiDerivTicks(symbols: string[], count: number) {
       try { wsRef.current?.close(); } catch { /* ignore */ }
     };
 
-    const requestHistory = (s: string) => {
+  const requestHistory = (s: string, latestOnly = false) => {
       ws.send(
         JSON.stringify({
           ticks_history: s,
           adjust_start_time: 1,
-          count: Math.max(countRef.current, 1000),
+          count: latestOnly ? 1 : Math.max(countRef.current, 1000),
           end: "latest",
           start: 1,
           style: "ticks",
-          subscribe: 1,
-          req_id: hashSymbol(s),
+          req_id: latestOnly ? hashSymbol(s) + 1_000_000 : hashSymbol(s),
         }),
       );
     };
@@ -80,7 +81,14 @@ export function useMultiDerivTicks(symbols: string[], count: number) {
         setState("open");
         attempt = 0;
         lastMsgAt = Date.now();
-        symbols.forEach(requestHistory);
+        symbols.forEach((symbol) => requestHistory(symbol));
+
+        // Public synthetic streams are currently rejected by Deriv. Polling
+        // the latest tick keeps every scanner market live on the same socket.
+        tickTimer = setInterval(() => {
+          if (ws.readyState !== WebSocket.OPEN) return;
+          symbols.forEach((symbol) => requestHistory(symbol, true));
+        }, 2_000);
 
         // Heartbeat: send a lightweight ping every 20s.
         pingTimer = setInterval(() => {
@@ -114,13 +122,25 @@ export function useMultiDerivTicks(symbols: string[], count: number) {
               epoch: times[i],
               quote: p,
             }));
-            setFeeds((prev) => ({
-              ...prev,
-              [sym]: {
-                ticks: fresh.slice(-countRef.current),
-                pip,
-              },
-            }));
+            setFeeds((prev) => {
+              const current = prev[sym];
+              const latestOnly = data.req_id === hashSymbol(sym) + 1_000_000;
+              if (!latestOnly || !current) {
+                return {
+                  ...prev,
+                  [sym]: { ticks: fresh.slice(-countRef.current), pip },
+                };
+              }
+              const latest = fresh[fresh.length - 1];
+              if (!latest || current.ticks[current.ticks.length - 1]?.epoch === latest.epoch) {
+                return prev;
+              }
+              const next = [...current.ticks, latest].slice(-countRef.current);
+              return {
+                ...prev,
+                [sym]: { ticks: next, pip: pip ?? current.pip },
+              };
+            });
           } else if (data.msg_type === "tick" && data.tick) {
             const t = data.tick as {
               symbol: string;
@@ -188,11 +208,6 @@ export function useMultiDerivTicks(symbols: string[], count: number) {
       if (typeof window !== "undefined") {
         window.removeEventListener("online", handleOnline);
         document.removeEventListener("visibilitychange", handleVisibility);
-      }
-      try {
-        wsRef.current?.send(JSON.stringify({ forget_all: "ticks" }));
-      } catch {
-        // ignore
       }
       wsRef.current?.close();
     };
