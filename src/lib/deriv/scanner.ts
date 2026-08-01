@@ -569,7 +569,12 @@ export const SCANNER_MODES: ScannerMode[] = [
   "over-1",
   "over-2",
   "over-3",
+  "under-hnr",
+  "over-hnr",
+  "under-destroyer",
+  "over-destroyer",
 ];
+
 
 export type TrackedSignal = EvenOddSignal & {
   firstSeen: number;
