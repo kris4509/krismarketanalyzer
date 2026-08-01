@@ -33,12 +33,14 @@ export function useDerivTicks(symbol: string, count: number) {
     let closed = false;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let pingTimer: ReturnType<typeof setInterval> | null = null;
+    let tickTimer: ReturnType<typeof setInterval> | null = null;
     let staleTimer: ReturnType<typeof setInterval> | null = null;
     let lastMsgAt = Date.now();
     let attempt = 0;
 
     const clearTimers = () => {
       if (pingTimer) { clearInterval(pingTimer); pingTimer = null; }
+      if (tickTimer) { clearInterval(tickTimer); tickTimer = null; }
       if (staleTimer) { clearInterval(staleTimer); staleTimer = null; }
     };
 
@@ -66,6 +68,9 @@ export function useDerivTicks(symbol: string, count: number) {
         setState("open");
         attempt = 0;
         lastMsgAt = Date.now();
+        // Deriv currently rejects streaming subscriptions for these public
+        // synthetic symbols, while ticks_history remains available. Load the
+        // full window once, then poll the latest tick below.
         ws.send(
           JSON.stringify({
             ticks_history: symbol,
@@ -74,9 +79,20 @@ export function useDerivTicks(symbol: string, count: number) {
             end: "latest",
             start: 1,
             style: "ticks",
-            subscribe: 1,
+            req_id: 1,
           }),
         );
+        tickTimer = setInterval(() => {
+          if (ws.readyState !== WebSocket.OPEN) return;
+          ws.send(JSON.stringify({
+            ticks_history: symbolRef.current,
+            count: 1,
+            end: "latest",
+            start: 1,
+            style: "ticks",
+            req_id: 2,
+          }));
+        }, 1_000);
         pingTimer = setInterval(() => {
           try { ws.send(JSON.stringify({ ping: 1 })); } catch { /* ignore */ }
         }, 20_000);
@@ -92,7 +108,7 @@ export function useDerivTicks(symbol: string, count: number) {
           if (data.msg_type === "ping" || data.pong) return;
           if (data.error) {
             console.error("Deriv error:", data.error);
-            setState("error");
+            if (data.req_id === 1) setState("error");
             return;
           }
           if (data.msg_type === "history" && data.history) {
@@ -105,7 +121,15 @@ export function useDerivTicks(symbol: string, count: number) {
               epoch: times[i],
               quote: p,
             }));
-            setTicks(fresh.slice(-countRef.current));
+            setTicks((prev) => {
+              if (data.req_id === 1 || prev.length === 0) {
+                return fresh.slice(-countRef.current);
+              }
+              const latest = fresh[fresh.length - 1];
+              if (!latest || prev[prev.length - 1]?.epoch === latest.epoch) return prev;
+              const next = [...prev, latest];
+              return next.slice(-countRef.current);
+            });
           } else if (data.msg_type === "tick" && data.tick) {
             const t = data.tick as { epoch: number; quote: number; pip_size?: number };
             if (typeof t.pip_size === "number") setPip(t.pip_size);
@@ -156,11 +180,6 @@ export function useDerivTicks(symbol: string, count: number) {
       if (typeof window !== "undefined") {
         window.removeEventListener("online", handleOnline);
         document.removeEventListener("visibilitychange", handleVisibility);
-      }
-      try {
-        wsRef.current?.send(JSON.stringify({ forget_all: "ticks" }));
-      } catch {
-        // ignore
       }
       wsRef.current?.close();
     };
