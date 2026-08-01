@@ -363,6 +363,103 @@ export const detectUnder9C4 = buildBarrierDetector({
   maxLosingPct: 10,
 });
 
+// ─────────── HnR / Destroyer detectors (rank-exclusion based) ───────────
+
+/**
+ * Rule detector for the HnR / Destroyer families:
+ *  - `caps`: digit → max percent (strict <)
+ *  - `noRankDigits`: digits that must NOT hold the green (most) or red (least) bar
+ *  - `notBothRankDigits`: green and red may not BOTH sit inside this digit set
+ */
+function buildRuleDetector(opts: {
+  mode: ScannerMode;
+  direction: string;
+  winningDigits: number[];
+  caps: Record<number, number>;
+  noRankDigits: number[];
+  notBothRankDigits?: number[];
+}): Detector {
+  return function detect(symbol, ticks, pip) {
+    if (ticks.length < 100) return null;
+    const stats = computeDigitStats(ticks, pip);
+    const green = stats.find((s) => s.rank === "most");
+    const red = stats.find((s) => s.rank === "least");
+    const blue = stats.find((s) => s.rank === "second");
+    const yellow = stats.find((s) => s.rank === "second-least");
+    if (!green || !red || !blue || !yellow) return null;
+
+    for (const [d, cap] of Object.entries(opts.caps)) {
+      const s = stats.find((x) => x.digit === Number(d));
+      if (!s || s.percent >= cap) return null;
+    }
+
+    const banned = new Set(opts.noRankDigits);
+    if (banned.has(green.digit) || banned.has(red.digit)) return null;
+
+    if (opts.notBothRankDigits) {
+      const set = new Set(opts.notBothRankDigits);
+      if (set.has(green.digit) && set.has(red.digit)) return null;
+    }
+
+    const winSet = new Set(opts.winningDigits);
+    const strength = stats
+      .filter((s) => winSet.has(s.digit))
+      .reduce((a, s) => a + s.percent, 0);
+    const last = ticks[ticks.length - 1];
+
+    return {
+      symbol,
+      mode: opts.mode,
+      direction: opts.direction,
+      winningDigits: opts.winningDigits,
+      greenDigit: green.digit,
+      redDigit: red.digit,
+      blueDigit: blue.digit,
+      yellowDigit: yellow.digit,
+      strength,
+      oppositeStrength: 100 - strength,
+      stats,
+      lastQuote: last?.quote ?? null,
+      pip,
+      tickCount: ticks.length,
+    };
+  };
+}
+
+export const detectUnderHnR = buildRuleDetector({
+  mode: "under-hnr",
+  direction: "UNDER 8",
+  winningDigits: range(0, 7),
+  caps: { 8: 10, 9: 10 },
+  noRankDigits: [8, 9],
+});
+
+export const detectOverHnR = buildRuleDetector({
+  mode: "over-hnr",
+  direction: "OVER 1",
+  winningDigits: range(2, 9),
+  caps: { 0: 10, 1: 10 },
+  noRankDigits: [0, 1],
+});
+
+export const detectUnderDestroyer = buildRuleDetector({
+  mode: "under-destroyer",
+  direction: "UNDER 7",
+  winningDigits: range(0, 6),
+  caps: { 6: 10.5, 7: 10, 8: 10, 9: 10 },
+  noRankDigits: [7, 8, 9],
+});
+
+export const detectOverDestroyer = buildRuleDetector({
+  mode: "over-destroyer",
+  direction: "OVER 2",
+  winningDigits: range(3, 9),
+  caps: { 0: 10, 1: 10, 2: 10, 3: 10.5 },
+  noRankDigits: [0, 1, 2],
+  notBothRankDigits: [5, 6],
+});
+
+
 // ───────────────────────── Scanner registry ─────────────────────────
 
 export type ScannerInfo = {
