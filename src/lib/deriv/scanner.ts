@@ -456,7 +456,7 @@ export const detectOverDestroyer = buildRuleDetector({
   direction: "OVER 2",
   winningDigits: range(3, 9),
   caps: { 0: 10, 1: 10, 2: 10 },
-  noRankDigits: [0, 1, 2],
+  noRankDigits: [],
   notBothRankDigits: [5, 6],
 });
 
@@ -554,7 +554,7 @@ export const SCANNERS: Record<ScannerMode, ScannerInfo> = {
   "over-destroyer": {
     mode: "over-destroyer",
     label: "Over Destroyer",
-    sub: "0/1/2 below 10% (no G/R) · G+R not both on 5/6",
+    sub: "0/1/2 below 10% · G+R not both on 5/6",
     detect: detectOverDestroyer,
     hasStrategies: false,
   },
