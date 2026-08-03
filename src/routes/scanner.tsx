@@ -275,7 +275,7 @@ function ScannerPage() {
       }
     }
     return out;
-  }, [feeds, mode, tracked, persistMs]);
+  }, [feeds, mode, tracked, persistMs, variant]);
 
   const filteredTracked = tracked.filter((t) => t.strength >= minStrength);
   const locked = filteredTracked.filter((t) => t.persistent);
