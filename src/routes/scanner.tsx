@@ -347,7 +347,7 @@ function ScannerPage() {
   // Build a stable key listing every currently-locked (mode, symbol, direction).
   const allLocked: Array<{ mode: ScannerMode; sig: TrackedSignal }> = [];
   for (const m of availableModes) {
-    for (const s of crossSignals[m].signals) {
+    for (const s of crossSignals[m]?.signals ?? []) {
       if (s.persistent) allLocked.push({ mode: m, sig: s });
     }
   }
@@ -439,7 +439,7 @@ function ScannerPage() {
               {availableModes.map((m) => {
                 const info = SCANNERS[m];
                 const active = m === mode;
-                const cs = crossSignals[m];
+                const cs = crossSignals[m] ?? { locked: 0, fresh: 0, signals: [] };
                 const totalCount = cs.locked + cs.fresh;
                 return (
                   <button
@@ -762,8 +762,8 @@ function CrossScannerBanner({
   onJump: (m: ScannerMode) => void;
 }) {
   const others = modes.filter((m) => m !== mode);
-  const anyLocked = others.some((m) => crossSignals[m].locked > 0);
-  const anyFresh = others.some((m) => crossSignals[m].fresh > 0);
+  const anyLocked = others.some((m) => (crossSignals[m]?.locked ?? 0) > 0);
+  const anyFresh = others.some((m) => (crossSignals[m]?.fresh ?? 0) > 0);
   if (!anyLocked && !anyFresh) return null;
   return (
     <section
@@ -786,7 +786,7 @@ function CrossScannerBanner({
       <div className="flex flex-wrap gap-2">
         {others.map((m) => {
           const info = SCANNERS[m];
-          const cs = crossSignals[m];
+          const cs = crossSignals[m] ?? { locked: 0, fresh: 0, signals: [] };
           const isHot = cs.locked > 0;
           const isWarm = cs.fresh > 0;
           return (
