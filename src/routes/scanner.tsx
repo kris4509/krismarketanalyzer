@@ -23,7 +23,7 @@ import { useMultiDerivTicks } from "@/lib/deriv/useMultiDerivTicks";
 import { computeDigitStats, lastDigit, type DigitStat } from "@/lib/deriv/analysis";
 
 const SCAN_SYMBOLS = DERIV_SYMBOLS.filter(
-  (s) => s.group === "Volatility (1s)",
+  (s) => s.group === "Volatility (1s)" || s.group === "Volatility",
 );
 const SCAN_CODES = SCAN_SYMBOLS.map((s) => s.code);
 const HISTORY_LIMIT = 20;
@@ -104,6 +104,20 @@ function ScannerPage() {
       ? STRATEGIES[strategy].detect
       : activeScanner.detect;
   const { feeds, state } = useMultiDerivTicks(SCAN_CODES, count);
+
+  const strategyCounts = useMemo(() => {
+    const counts = {} as Record<EvenOddStrategy, number>;
+    for (const key of Object.keys(STRATEGIES) as EvenOddStrategy[]) {
+      const detector = STRATEGIES[key].detect;
+      counts[key] = SCAN_SYMBOLS.reduce((total, meta) => {
+        const feed = feeds[meta.code];
+        const ticks = feed?.ticks ?? [];
+        const pip = feed?.pip ?? meta.pip;
+        return total + (detector(meta.code, ticks, pip) ? 1 : 0);
+      }, 0);
+    }
+    return counts;
+  }, [feeds]);
 
   // Tracker keyed by "mode:symbol" so we can hold state across all scanners.
   const trackerRef = useRef<
@@ -384,7 +398,7 @@ function ScannerPage() {
               {VARIANT_LABEL[variant]} Scanner
             </h2>
             <p className="text-sm text-muted-foreground">
-              Monitoring all {SCAN_SYMBOLS.length} 1s volatility markets.{" "}
+              Monitoring all {SCAN_SYMBOLS.length} plain and 1s volatility markets.{" "}
               <span className="text-foreground/70">
                 {state === "open" ? "Live feed connected." : `Status: ${state}`}
               </span>
@@ -491,8 +505,21 @@ function ScannerPage() {
                         : "text-muted-foreground hover:bg-secondary/40 hover:text-foreground",
                     )}
                   >
-                    <div className="font-mono text-xs font-bold uppercase tracking-wider">
-                      {STRATEGIES[k].label}
+                    <div className="flex items-center justify-between gap-2 font-mono text-xs font-bold uppercase tracking-wider">
+                      <span>{STRATEGIES[k].label}</span>
+                      <span
+                        className={cn(
+                          "rounded-full px-2 py-0.5 text-[10px] tabular-nums",
+                          active
+                            ? "bg-primary-foreground/15 text-primary-foreground"
+                            : strategyCounts[k] > 0
+                              ? "bg-[var(--rank-most)]/15 text-[var(--rank-most)]"
+                              : "bg-secondary text-muted-foreground",
+                        )}
+                        title={`${strategyCounts[k]} valid signals`}
+                      >
+                        {strategyCounts[k]} valid
+                      </span>
                     </div>
                     <div
                       className={cn(

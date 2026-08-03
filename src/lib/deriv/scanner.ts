@@ -440,13 +440,14 @@ export const detectOverHnR = buildRuleDetector({
   winningDigits: range(2, 9),
   caps: { 0: 10, 1: 10 },
   noRankDigits: [0, 1],
+  notBothRankDigits: [5, 6],
 });
 
 export const detectUnderDestroyer = buildRuleDetector({
   mode: "under-destroyer",
   direction: "UNDER 7",
   winningDigits: range(0, 6),
-  caps: { 6: 10.5, 7: 10, 8: 10, 9: 10 },
+  caps: { 7: 10, 8: 10, 9: 10 },
   noRankDigits: [7, 8, 9],
 });
 
@@ -454,7 +455,7 @@ export const detectOverDestroyer = buildRuleDetector({
   mode: "over-destroyer",
   direction: "OVER 2",
   winningDigits: range(3, 9),
-  caps: { 0: 10, 1: 10, 2: 10, 3: 10.5 },
+  caps: { 0: 10, 1: 10, 2: 10 },
   noRankDigits: [0, 1, 2],
   notBothRankDigits: [5, 6],
 });
@@ -539,21 +540,21 @@ export const SCANNERS: Record<ScannerMode, ScannerInfo> = {
   "over-hnr": {
     mode: "over-hnr",
     label: "Over HnR",
-    sub: "0 & 1 below 10% · no Green/Red on 0 or 1",
+    sub: "0 & 1 below 10% (no G/R) · G+R not both on 5/6",
     detect: detectOverHnR,
     hasStrategies: false,
   },
   "under-destroyer": {
     mode: "under-destroyer",
     label: "Under Destroyer",
-    sub: "7/8/9 below 10% (no G/R) · 6 below 10.5%",
+    sub: "7/8/9 below 10% · no Green/Red on 7, 8 or 9",
     detect: detectUnderDestroyer,
     hasStrategies: false,
   },
   "over-destroyer": {
     mode: "over-destroyer",
     label: "Over Destroyer",
-    sub: "0/1/2 below 10% (no G/R) · 3 below 10.5% · G+R not both on 5/6",
+    sub: "0/1/2 below 10% (no G/R) · G+R not both on 5/6",
     detect: detectOverDestroyer,
     hasStrategies: false,
   },
