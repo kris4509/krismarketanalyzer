@@ -376,6 +376,8 @@ function buildRuleDetector(opts: {
   direction: string;
   winningDigits: number[];
   caps: Record<number, number>;
+  /** digit → minimum percent (strict >) */
+  floors?: Record<number, number>;
   noRankDigits: number[];
   notBothRankDigits?: number[];
 }): Detector {
@@ -393,8 +395,16 @@ function buildRuleDetector(opts: {
       if (!s || s.percent >= cap) return null;
     }
 
+    if (opts.floors) {
+      for (const [d, floor] of Object.entries(opts.floors)) {
+        const s = stats.find((x) => x.digit === Number(d));
+        if (!s || s.percent <= floor) return null;
+      }
+    }
+
     const banned = new Set(opts.noRankDigits);
     if (banned.has(green.digit) || banned.has(red.digit)) return null;
+
 
     if (opts.notBothRankDigits) {
       const set = new Set(opts.notBothRankDigits);
@@ -443,22 +453,31 @@ export const detectOverHnR = buildRuleDetector({
   notBothRankDigits: [5, 6],
 });
 
+// Both destroyers share the same core shape: the outer digits (0/1/2 and
+// 7/8/9) are suppressed below 10% and hold no Green/Red bar, while the middle
+// block 3/4/5/6 carries the higher percentages.
+const DESTROYER_CAPS = { 0: 10, 1: 10, 2: 10, 7: 10, 8: 10, 9: 10 };
+const DESTROYER_FLOORS = { 3: 10, 4: 10, 5: 10, 6: 10 };
+const DESTROYER_NO_RANK = [0, 1, 2, 7, 8, 9];
+
 export const detectUnderDestroyer = buildRuleDetector({
   mode: "under-destroyer",
   direction: "UNDER 7",
   winningDigits: range(0, 6),
-  caps: { 7: 10, 8: 10, 9: 10 },
-  noRankDigits: [7, 8, 9],
+  caps: DESTROYER_CAPS,
+  floors: DESTROYER_FLOORS,
+  noRankDigits: DESTROYER_NO_RANK,
 });
 
 export const detectOverDestroyer = buildRuleDetector({
   mode: "over-destroyer",
   direction: "OVER 2",
   winningDigits: range(3, 9),
-  caps: { 0: 10, 1: 10, 2: 10 },
-  noRankDigits: [],
-  notBothRankDigits: [5, 6],
+  caps: DESTROYER_CAPS,
+  floors: DESTROYER_FLOORS,
+  noRankDigits: DESTROYER_NO_RANK,
 });
+
 
 
 // ───────────────────────── Scanner registry ─────────────────────────
@@ -547,14 +566,14 @@ export const SCANNERS: Record<ScannerMode, ScannerInfo> = {
   "under-destroyer": {
     mode: "under-destroyer",
     label: "Under Destroyer",
-    sub: "7/8/9 below 10% · no Green/Red on 7, 8 or 9",
+    sub: "0–2 & 7–9 below 10% (no G/R) · 3–6 above 10%",
     detect: detectUnderDestroyer,
     hasStrategies: false,
   },
   "over-destroyer": {
     mode: "over-destroyer",
     label: "Over Destroyer",
-    sub: "0/1/2 below 10% · G+R not both on 5/6",
+    sub: "0–2 & 7–9 below 10% (no G/R) · 3–6 above 10%",
     detect: detectOverDestroyer,
     hasStrategies: false,
   },

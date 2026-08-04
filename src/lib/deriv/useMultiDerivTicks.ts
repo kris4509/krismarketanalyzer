@@ -33,6 +33,7 @@ export function useMultiDerivTicks(symbols: string[], count: number) {
     let pingTimer: ReturnType<typeof setInterval> | null = null;
     let tickTimer: ReturnType<typeof setInterval> | null = null;
     let staleTimer: ReturnType<typeof setInterval> | null = null;
+    let subscribeTimers: ReturnType<typeof setTimeout>[] = [];
     let lastMsgAt = Date.now();
     let attempt = 0;
 
@@ -40,6 +41,8 @@ export function useMultiDerivTicks(symbols: string[], count: number) {
       if (pingTimer) { clearInterval(pingTimer); pingTimer = null; }
       if (tickTimer) { clearInterval(tickTimer); tickTimer = null; }
       if (staleTimer) { clearInterval(staleTimer); staleTimer = null; }
+      subscribeTimers.forEach(clearTimeout);
+      subscribeTimers = [];
     };
 
     const scheduleReconnect = () => {
@@ -59,19 +62,26 @@ export function useMultiDerivTicks(symbols: string[], count: number) {
       try { wsRef.current?.close(); } catch { /* ignore */ }
     };
 
-  const requestHistory = (s: string, latestOnly = false) => {
-      ws.send(
+    const requestHistory = (s: string, latestOnly = false) => {
+      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+      wsRef.current.send(
         JSON.stringify({
           ticks_history: s,
           adjust_start_time: 1,
-          count: latestOnly ? 1 : Math.max(countRef.current, 1000),
+          count: Math.max(countRef.current, 1000),
           end: "latest",
           start: 1,
           style: "ticks",
+          ...(latestOnly ? {} : { subscribe: 1 }),
           req_id: latestOnly ? hashSymbol(s) + 1_000_000 : hashSymbol(s),
         }),
       );
     };
+
+    // Symbols whose stream was refused — polled slowly, one per tick of the
+    // fallback timer, so we never trip Deriv's request-rate limit.
+    const fallback: string[] = [];
+    let fallbackIdx = 0;
 
     const connect = () => {
       ws = new WebSocket(WS_URL);
@@ -81,14 +91,21 @@ export function useMultiDerivTicks(symbols: string[], count: number) {
         setState("open");
         attempt = 0;
         lastMsgAt = Date.now();
-        symbols.forEach((symbol) => requestHistory(symbol));
+        // Subscribe to each symbol, staggered so the burst of requests stays
+        // under Deriv's rate limit. One subscription streams every new tick,
+        // keeping our digit percentages identical to Deriv's own feed.
+        symbols.forEach((symbol, i) => {
+          const t = setTimeout(() => requestHistory(symbol), i * 250);
+          subscribeTimers.push(t);
+        });
 
-        // Public synthetic streams are currently rejected by Deriv. Polling
-        // the latest tick keeps every scanner market live on the same socket.
+        // Slow round-robin poller, only used for symbols that refused to stream.
         tickTimer = setInterval(() => {
-          if (ws.readyState !== WebSocket.OPEN) return;
-          symbols.forEach((symbol) => requestHistory(symbol, true));
-        }, 2_000);
+          if (fallback.length === 0) return;
+          const sym = fallback[fallbackIdx % fallback.length];
+          fallbackIdx++;
+          requestHistory(sym, true);
+        }, 1_500);
 
         // Heartbeat: send a lightweight ping every 20s.
         pingTimer = setInterval(() => {
@@ -107,7 +124,15 @@ export function useMultiDerivTicks(symbols: string[], count: number) {
           const data = JSON.parse(event.data);
           if (data.msg_type === "ping" || data.pong) return;
           if (data.error) {
-            console.error("Deriv scanner error:", data.error);
+            const sym: string | undefined = data.echo_req?.ticks_history;
+            const code = data.error.code;
+            if (sym && code !== "RateLimit" && !fallback.includes(sym)) {
+              fallback.push(sym);
+            } else if (sym && code === "RateLimit") {
+              // Retry this symbol's subscription shortly.
+              const t = setTimeout(() => requestHistory(sym), 4_000);
+              subscribeTimers.push(t);
+            }
             return;
           }
           if (data.msg_type === "history" && data.history && data.echo_req) {
@@ -124,8 +149,9 @@ export function useMultiDerivTicks(symbols: string[], count: number) {
             }));
             setFeeds((prev) => {
               const current = prev[sym];
-              const latestOnly = data.req_id === hashSymbol(sym) + 1_000_000;
-              if (!latestOnly || !current) {
+              // A full refreshed window always replaces the buffer so our
+              // digit percentages stay an exact replica of Deriv's own data.
+              if (fresh.length > 1 || !current) {
                 return {
                   ...prev,
                   [sym]: { ticks: fresh.slice(-countRef.current), pip },
