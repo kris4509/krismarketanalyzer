@@ -376,6 +376,8 @@ function buildRuleDetector(opts: {
   direction: string;
   winningDigits: number[];
   caps: Record<number, number>;
+  /** digit → minimum percent (strict >) */
+  floors?: Record<number, number>;
   noRankDigits: number[];
   notBothRankDigits?: number[];
 }): Detector {
@@ -393,8 +395,16 @@ function buildRuleDetector(opts: {
       if (!s || s.percent >= cap) return null;
     }
 
+    if (opts.floors) {
+      for (const [d, floor] of Object.entries(opts.floors)) {
+        const s = stats.find((x) => x.digit === Number(d));
+        if (!s || s.percent <= floor) return null;
+      }
+    }
+
     const banned = new Set(opts.noRankDigits);
     if (banned.has(green.digit) || banned.has(red.digit)) return null;
+
 
     if (opts.notBothRankDigits) {
       const set = new Set(opts.notBothRankDigits);
