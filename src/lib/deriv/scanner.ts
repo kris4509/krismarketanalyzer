@@ -566,14 +566,14 @@ export const SCANNERS: Record<ScannerMode, ScannerInfo> = {
   "under-destroyer": {
     mode: "under-destroyer",
     label: "Under Destroyer",
-    sub: "7/8/9 below 10% · no Green/Red on 7, 8 or 9",
+    sub: "0–2 & 7–9 below 10% (no G/R) · 3–6 above 10%",
     detect: detectUnderDestroyer,
     hasStrategies: false,
   },
   "over-destroyer": {
     mode: "over-destroyer",
     label: "Over Destroyer",
-    sub: "0/1/2 below 10% · G+R not both on 5/6",
+    sub: "0–2 & 7–9 below 10% (no G/R) · 3–6 above 10%",
     detect: detectOverDestroyer,
     hasStrategies: false,
   },
