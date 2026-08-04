@@ -114,15 +114,12 @@ export function useDerivTicks(symbol: string, count: number) {
           const data = JSON.parse(event.data);
           if (data.msg_type === "ping" || data.pong) return;
           if (data.error) {
-            const code = data.error.code;
-            if (data.req_id === 1 && !tickTimer && code !== "RateLimit") {
-              // Streaming refused for this symbol — fall back to slow polling.
-              startPolling();
-            } else if (data.req_id === 1 && code !== "RateLimit") {
-              setState("error");
-            }
+            // Rate limits are transient; anything else means the stream was
+            // refused, so fall back to periodic full-window refreshes.
+            if (data.error.code !== "RateLimit") startPolling();
             return;
           }
+
           if (data.msg_type === "history" && data.history) {
             const { prices, times } = data.history as {
               prices: number[];
