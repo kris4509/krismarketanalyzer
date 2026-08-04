@@ -60,6 +60,23 @@ export function useDerivTicks(symbol: string, count: number) {
       try { wsRef.current?.close(); } catch { /* ignore */ }
     };
 
+    const startPolling = () => {
+      if (tickTimer) return;
+      tickTimer = setInterval(() => {
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+        wsRef.current.send(
+          JSON.stringify({
+            ticks_history: symbolRef.current,
+            count: 1,
+            end: "latest",
+            start: 1,
+            style: "ticks",
+            req_id: 2,
+          }),
+        );
+      }, 2_000);
+    };
+
     const connect = () => {
       ws = new WebSocket(WS_URL);
       wsRef.current = ws;
@@ -68,9 +85,9 @@ export function useDerivTicks(symbol: string, count: number) {
         setState("open");
         attempt = 0;
         lastMsgAt = Date.now();
-        // Deriv currently rejects streaming subscriptions for these public
-        // synthetic symbols, while ticks_history remains available. Load the
-        // full window once, then poll the latest tick below.
+        // Stream the tick history: one request returns the full window and
+        // then pushes every new tick. Streaming avoids the request-rate limit
+        // that polling used to hit (which caused freezes and stale digits).
         ws.send(
           JSON.stringify({
             ticks_history: symbol,
@@ -79,20 +96,10 @@ export function useDerivTicks(symbol: string, count: number) {
             end: "latest",
             start: 1,
             style: "ticks",
+            subscribe: 1,
             req_id: 1,
           }),
         );
-        tickTimer = setInterval(() => {
-          if (ws.readyState !== WebSocket.OPEN) return;
-          ws.send(JSON.stringify({
-            ticks_history: symbolRef.current,
-            count: 1,
-            end: "latest",
-            start: 1,
-            style: "ticks",
-            req_id: 2,
-          }));
-        }, 1_000);
         pingTimer = setInterval(() => {
           try { ws.send(JSON.stringify({ ping: 1 })); } catch { /* ignore */ }
         }, 20_000);
@@ -107,8 +114,13 @@ export function useDerivTicks(symbol: string, count: number) {
           const data = JSON.parse(event.data);
           if (data.msg_type === "ping" || data.pong) return;
           if (data.error) {
-            console.error("Deriv error:", data.error);
-            if (data.req_id === 1) setState("error");
+            const code = data.error.code;
+            if (data.req_id === 1 && !tickTimer && code !== "RateLimit") {
+              // Streaming refused for this symbol — fall back to slow polling.
+              startPolling();
+            } else if (data.req_id === 1 && code !== "RateLimit") {
+              setState("error");
+            }
             return;
           }
           if (data.msg_type === "history" && data.history) {
