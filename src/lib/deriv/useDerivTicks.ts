@@ -67,11 +67,11 @@ export function useDerivTicks(symbol: string, count: number) {
         wsRef.current.send(
           JSON.stringify({
             ticks_history: symbolRef.current,
-            count: 1,
+            count: Math.max(countRef.current, 1000),
             end: "latest",
             start: 1,
             style: "ticks",
-            req_id: 2,
+            req_id: 1,
           }),
         );
       }, 2_000);

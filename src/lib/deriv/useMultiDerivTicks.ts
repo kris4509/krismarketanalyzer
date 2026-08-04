@@ -68,7 +68,7 @@ export function useMultiDerivTicks(symbols: string[], count: number) {
         JSON.stringify({
           ticks_history: s,
           adjust_start_time: 1,
-          count: latestOnly ? 1 : Math.max(countRef.current, 1000),
+          count: Math.max(countRef.current, 1000),
           end: "latest",
           start: 1,
           style: "ticks",
@@ -149,8 +149,9 @@ export function useMultiDerivTicks(symbols: string[], count: number) {
             }));
             setFeeds((prev) => {
               const current = prev[sym];
-              const latestOnly = data.req_id === hashSymbol(sym) + 1_000_000;
-              if (!latestOnly || !current) {
+              // A full refreshed window always replaces the buffer so our
+              // digit percentages stay an exact replica of Deriv's own data.
+              if (fresh.length > 1 || !current) {
                 return {
                   ...prev,
                   [sym]: { ticks: fresh.slice(-countRef.current), pip },
