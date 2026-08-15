@@ -609,15 +609,43 @@ export const SCANNERS: Record<ScannerMode, ScannerInfo> = {
   "under-destroyer": {
     mode: "under-destroyer",
     label: "Under Destroyer",
-    sub: "0–2 & 7–9 below 10% · no G/R on 7–9 · 3–6 above 10%",
+    sub: "6–9 below 10.3% · no Green/Red on 6–9",
     detect: detectUnderDestroyer,
     hasStrategies: false,
   },
   "over-destroyer": {
     mode: "over-destroyer",
     label: "Over Destroyer",
-    sub: "0–2 & 7–9 below 10% · no G/R on 0–2 · 3–6 above 10%",
+    sub: "0–3 below 10.3% · no Green/Red on 0–3",
     detect: detectOverDestroyer,
+    hasStrategies: false,
+  },
+  "over-2-pro": {
+    mode: "over-2-pro",
+    label: "Over 2 Pro Bot",
+    sub: "0, 1 & 2 below 10.3% · no Green/Red on them",
+    detect: detectOver2Pro,
+    hasStrategies: false,
+  },
+  "under-7-pro": {
+    mode: "under-7-pro",
+    label: "Under 7 Pro Bot",
+    sub: "7, 8 & 9 below 10.3% · no Green/Red on them",
+    detect: detectUnder7Pro,
+    hasStrategies: false,
+  },
+  "over-killer": {
+    mode: "over-killer",
+    label: "Over Market Killer",
+    sub: "0, 1 & 2 below 10% · no Green bar on them",
+    detect: detectOverKiller,
+    hasStrategies: false,
+  },
+  "under-killer": {
+    mode: "under-killer",
+    label: "Under Market Killer",
+    sub: "7, 8 & 9 below 10% · no Green bar on them",
+    detect: detectUnderKiller,
     hasStrategies: false,
   },
 };
@@ -636,7 +664,12 @@ export const SCANNER_MODES: ScannerMode[] = [
   "over-hnr",
   "under-destroyer",
   "over-destroyer",
+  "over-2-pro",
+  "under-7-pro",
+  "over-killer",
+  "under-killer",
 ];
+
 
 
 export type TrackedSignal = EvenOddSignal & {
