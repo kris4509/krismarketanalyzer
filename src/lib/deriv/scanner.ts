@@ -379,8 +379,10 @@ function buildRuleDetector(opts: {
   /** digit → minimum percent (strict >) */
   floors?: Record<number, number>;
   noRankDigits: number[];
+  /** digits that must NOT hold the green (most) bar */
+  noGreenDigits?: number[];
   notBothRankDigits?: number[];
-}): Detector {
+
   return function detect(symbol, ticks, pip) {
     if (ticks.length < 100) return null;
     const stats = computeDigitStats(ticks, pip);
