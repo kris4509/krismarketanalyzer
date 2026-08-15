@@ -60,7 +60,7 @@ type ScannerVariant = "even-odd" | "over-under";
 
 const VARIANT_MODES: Record<ScannerVariant, ScannerMode[]> = {
   "even-odd": ["even-odd"],
-  "over-under": ["under-8", "under-7", "under-9", "under-9-c4", "over-1", "over-2", "over-3", "under-hnr", "over-hnr", "under-destroyer", "over-destroyer"],
+  "over-under": ["under-8", "under-7", "under-9", "under-9-c4", "over-1", "over-2", "over-3", "under-hnr", "over-hnr", "under-destroyer", "over-destroyer", "over-2-pro", "under-7-pro", "over-killer", "under-killer"],
 };
 
 const VARIANT_LABEL: Record<ScannerVariant, string> = {
