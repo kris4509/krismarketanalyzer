@@ -13,7 +13,12 @@ export type ScannerMode =
   | "under-hnr"
   | "over-hnr"
   | "under-destroyer"
-  | "over-destroyer";
+  | "over-destroyer"
+  | "over-2-pro"
+  | "under-7-pro"
+  | "over-killer"
+  | "under-killer";
+
 
 
 export type EvenOddSignal = {
@@ -379,8 +384,12 @@ function buildRuleDetector(opts: {
   /** digit → minimum percent (strict >) */
   floors?: Record<number, number>;
   noRankDigits: number[];
+  /** digits that must NOT hold the green (most) bar */
+  noGreenDigits?: number[];
   notBothRankDigits?: number[];
 }): Detector {
+
+
   return function detect(symbol, ticks, pip) {
     if (ticks.length < 100) return null;
     const stats = computeDigitStats(ticks, pip);
@@ -404,6 +413,10 @@ function buildRuleDetector(opts: {
 
     const banned = new Set(opts.noRankDigits);
     if (banned.has(green.digit) || banned.has(red.digit)) return null;
+
+    if (opts.noGreenDigits && opts.noGreenDigits.includes(green.digit)) return null;
+
+
 
 
     if (opts.notBothRankDigits) {
@@ -453,29 +466,60 @@ export const detectOverHnR = buildRuleDetector({
   notBothRankDigits: [5, 6],
 });
 
-// Both destroyers share the same core shape: the outer digits (0/1/2 and
-// 7/8/9) are suppressed below 10% and hold no Green/Red bar, while the middle
-// block 3/4/5/6 carries the higher percentages.
-const DESTROYER_CAPS = { 0: 10, 1: 10, 2: 10, 7: 10, 8: 10, 9: 10 };
-const DESTROYER_FLOORS = { 3: 10, 4: 10, 5: 10, 6: 10 };
-
+// Destroyers: the losing block is suppressed below 10.3% and may hold neither
+// the Green nor the Red bar.
 export const detectUnderDestroyer = buildRuleDetector({
   mode: "under-destroyer",
-  direction: "UNDER 7",
-  winningDigits: range(0, 6),
-  caps: DESTROYER_CAPS,
-  floors: DESTROYER_FLOORS,
-  noRankDigits: [7, 8, 9],
+  direction: "UNDER 6",
+  winningDigits: range(0, 5),
+  caps: { 6: 10.3, 7: 10.3, 8: 10.3, 9: 10.3 },
+  noRankDigits: [6, 7, 8, 9],
 });
 
 export const detectOverDestroyer = buildRuleDetector({
   mode: "over-destroyer",
+  direction: "OVER 3",
+  winningDigits: range(4, 9),
+  caps: { 0: 10.3, 1: 10.3, 2: 10.3, 3: 10.3 },
+  noRankDigits: [0, 1, 2, 3],
+});
+
+// Pro Bot: losing digits below 10.3% with no Green/Red bar on them.
+export const detectOver2Pro = buildRuleDetector({
+  mode: "over-2-pro",
   direction: "OVER 2",
   winningDigits: range(3, 9),
-  caps: DESTROYER_CAPS,
-  floors: DESTROYER_FLOORS,
+  caps: { 0: 10.3, 1: 10.3, 2: 10.3 },
   noRankDigits: [0, 1, 2],
 });
+
+export const detectUnder7Pro = buildRuleDetector({
+  mode: "under-7-pro",
+  direction: "UNDER 7",
+  winningDigits: range(0, 6),
+  caps: { 7: 10.3, 8: 10.3, 9: 10.3 },
+  noRankDigits: [7, 8, 9],
+});
+
+// Market Killer: losing digits below 10% with no Green bar on them.
+export const detectOverKiller = buildRuleDetector({
+  mode: "over-killer",
+  direction: "OVER 2",
+  winningDigits: range(3, 9),
+  caps: { 0: 10, 1: 10, 2: 10 },
+  noRankDigits: [],
+  noGreenDigits: [0, 1, 2],
+});
+
+export const detectUnderKiller = buildRuleDetector({
+  mode: "under-killer",
+  direction: "UNDER 7",
+  winningDigits: range(0, 6),
+  caps: { 7: 10, 8: 10, 9: 10 },
+  noRankDigits: [],
+  noGreenDigits: [7, 8, 9],
+});
+
 
 
 
@@ -565,15 +609,43 @@ export const SCANNERS: Record<ScannerMode, ScannerInfo> = {
   "under-destroyer": {
     mode: "under-destroyer",
     label: "Under Destroyer",
-    sub: "0–2 & 7–9 below 10% · no G/R on 7–9 · 3–6 above 10%",
+    sub: "6–9 below 10.3% · no Green/Red on 6–9",
     detect: detectUnderDestroyer,
     hasStrategies: false,
   },
   "over-destroyer": {
     mode: "over-destroyer",
     label: "Over Destroyer",
-    sub: "0–2 & 7–9 below 10% · no G/R on 0–2 · 3–6 above 10%",
+    sub: "0–3 below 10.3% · no Green/Red on 0–3",
     detect: detectOverDestroyer,
+    hasStrategies: false,
+  },
+  "over-2-pro": {
+    mode: "over-2-pro",
+    label: "Over 2 Pro Bot",
+    sub: "0, 1 & 2 below 10.3% · no Green/Red on them",
+    detect: detectOver2Pro,
+    hasStrategies: false,
+  },
+  "under-7-pro": {
+    mode: "under-7-pro",
+    label: "Under 7 Pro Bot",
+    sub: "7, 8 & 9 below 10.3% · no Green/Red on them",
+    detect: detectUnder7Pro,
+    hasStrategies: false,
+  },
+  "over-killer": {
+    mode: "over-killer",
+    label: "Over Market Killer",
+    sub: "0, 1 & 2 below 10% · no Green bar on them",
+    detect: detectOverKiller,
+    hasStrategies: false,
+  },
+  "under-killer": {
+    mode: "under-killer",
+    label: "Under Market Killer",
+    sub: "7, 8 & 9 below 10% · no Green bar on them",
+    detect: detectUnderKiller,
     hasStrategies: false,
   },
 };
@@ -592,7 +664,12 @@ export const SCANNER_MODES: ScannerMode[] = [
   "over-hnr",
   "under-destroyer",
   "over-destroyer",
+  "over-2-pro",
+  "under-7-pro",
+  "over-killer",
+  "under-killer",
 ];
+
 
 
 export type TrackedSignal = EvenOddSignal & {
