@@ -13,7 +13,12 @@ export type ScannerMode =
   | "under-hnr"
   | "over-hnr"
   | "under-destroyer"
-  | "over-destroyer";
+  | "over-destroyer"
+  | "over-2-pro"
+  | "under-7-pro"
+  | "over-killer"
+  | "under-killer";
+
 
 
 export type EvenOddSignal = {
