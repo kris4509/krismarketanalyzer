@@ -382,6 +382,8 @@ function buildRuleDetector(opts: {
   /** digits that must NOT hold the green (most) bar */
   noGreenDigits?: number[];
   notBothRankDigits?: number[];
+}): Detector {
+
 
   return function detect(symbol, ticks, pip) {
     if (ticks.length < 100) return null;
