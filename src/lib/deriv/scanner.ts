@@ -461,29 +461,60 @@ export const detectOverHnR = buildRuleDetector({
   notBothRankDigits: [5, 6],
 });
 
-// Both destroyers share the same core shape: the outer digits (0/1/2 and
-// 7/8/9) are suppressed below 10% and hold no Green/Red bar, while the middle
-// block 3/4/5/6 carries the higher percentages.
-const DESTROYER_CAPS = { 0: 10, 1: 10, 2: 10, 7: 10, 8: 10, 9: 10 };
-const DESTROYER_FLOORS = { 3: 10, 4: 10, 5: 10, 6: 10 };
-
+// Destroyers: the losing block is suppressed below 10.3% and may hold neither
+// the Green nor the Red bar.
 export const detectUnderDestroyer = buildRuleDetector({
   mode: "under-destroyer",
-  direction: "UNDER 7",
-  winningDigits: range(0, 6),
-  caps: DESTROYER_CAPS,
-  floors: DESTROYER_FLOORS,
-  noRankDigits: [7, 8, 9],
+  direction: "UNDER 6",
+  winningDigits: range(0, 5),
+  caps: { 6: 10.3, 7: 10.3, 8: 10.3, 9: 10.3 },
+  noRankDigits: [6, 7, 8, 9],
 });
 
 export const detectOverDestroyer = buildRuleDetector({
   mode: "over-destroyer",
+  direction: "OVER 3",
+  winningDigits: range(4, 9),
+  caps: { 0: 10.3, 1: 10.3, 2: 10.3, 3: 10.3 },
+  noRankDigits: [0, 1, 2, 3],
+});
+
+// Pro Bot: losing digits below 10.3% with no Green/Red bar on them.
+export const detectOver2Pro = buildRuleDetector({
+  mode: "over-2-pro",
   direction: "OVER 2",
   winningDigits: range(3, 9),
-  caps: DESTROYER_CAPS,
-  floors: DESTROYER_FLOORS,
+  caps: { 0: 10.3, 1: 10.3, 2: 10.3 },
   noRankDigits: [0, 1, 2],
 });
+
+export const detectUnder7Pro = buildRuleDetector({
+  mode: "under-7-pro",
+  direction: "UNDER 7",
+  winningDigits: range(0, 6),
+  caps: { 7: 10.3, 8: 10.3, 9: 10.3 },
+  noRankDigits: [7, 8, 9],
+});
+
+// Market Killer: losing digits below 10% with no Green bar on them.
+export const detectOverKiller = buildRuleDetector({
+  mode: "over-killer",
+  direction: "OVER 2",
+  winningDigits: range(3, 9),
+  caps: { 0: 10, 1: 10, 2: 10 },
+  noRankDigits: [],
+  noGreenDigits: [0, 1, 2],
+});
+
+export const detectUnderKiller = buildRuleDetector({
+  mode: "under-killer",
+  direction: "UNDER 7",
+  winningDigits: range(0, 6),
+  caps: { 7: 10, 8: 10, 9: 10 },
+  noRankDigits: [],
+  noGreenDigits: [7, 8, 9],
+});
+
 
 
 
