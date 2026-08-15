@@ -409,6 +409,10 @@ function buildRuleDetector(opts: {
     const banned = new Set(opts.noRankDigits);
     if (banned.has(green.digit) || banned.has(red.digit)) return null;
 
+    if (opts.noGreenDigits && opts.noGreenDigits.includes(green.digit)) return null;
+
+
+
 
     if (opts.notBothRankDigits) {
       const set = new Set(opts.notBothRankDigits);
