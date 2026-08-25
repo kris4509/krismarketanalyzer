@@ -210,6 +210,21 @@ export function useDerivTicks(symbol: string, count: number) {
  */
 export function mergeTicks(prev: Tick[], incoming: Tick[], max: number): Tick[] {
   if (incoming.length === 0) return prev;
+
+  // Fast path: a single live tick that is newer than everything we hold.
+  // Avoids rebuilding a Set + re-sorting a 1000-item buffer on every tick,
+  // which is what made the UI stall while many markets streamed at once.
+  if (incoming.length === 1 && prev.length > 0) {
+    const t = incoming[0];
+    const last = prev[prev.length - 1];
+    if (t.epoch === last.epoch) return prev;
+    if (t.epoch > last.epoch) {
+      const next = prev.length >= max ? prev.slice(prev.length - max + 1) : prev.slice();
+      next.push(t);
+      return next;
+    }
+  }
+
   const seen = new Set(prev.map((t) => t.epoch));
   let next = prev;
   let changed = false;

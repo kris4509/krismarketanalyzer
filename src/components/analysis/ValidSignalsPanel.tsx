@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMultiDerivTicks } from "@/lib/deriv/useMultiDerivTicks";
 import {
   SCANNERS,
