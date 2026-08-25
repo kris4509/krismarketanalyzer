@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import type { Tick } from "./useDerivTicks";
+import { mergeTicks, type Tick } from "./useDerivTicks";
+
 
 const APP_ID = 1089;
 const WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
