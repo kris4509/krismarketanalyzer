@@ -36,7 +36,9 @@ export function useDerivTicks(symbol: string, count: number) {
     let tickTimer: ReturnType<typeof setInterval> | null = null;
     let staleTimer: ReturnType<typeof setInterval> | null = null;
     let lastMsgAt = Date.now();
+    let lastResyncAt = Date.now();
     let attempt = 0;
+
 
     const clearTimers = () => {
       if (pingTimer) { clearInterval(pingTimer); pingTimer = null; }
