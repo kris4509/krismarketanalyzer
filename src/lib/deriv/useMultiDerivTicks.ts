@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import type { Tick } from "./useDerivTicks";
+import { mergeTicks, type Tick } from "./useDerivTicks";
+
 
 const APP_ID = 1089;
 const WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
@@ -99,13 +100,18 @@ export function useMultiDerivTicks(symbols: string[], count: number) {
           subscribeTimers.push(t);
         });
 
-        // Slow round-robin poller, only used for symbols that refused to stream.
+        // Slow round-robin refresher: symbols that refused to stream are
+        // polled first; otherwise every symbol gets a periodic authoritative
+        // full-window refresh so a dropped tick can't leave our percentages
+        // out of step with Deriv's own 1000-tick window.
         tickTimer = setInterval(() => {
-          if (fallback.length === 0) return;
-          const sym = fallback[fallbackIdx % fallback.length];
+          const pool = fallback.length > 0 ? fallback : symbols;
+          if (pool.length === 0) return;
+          const sym = pool[fallbackIdx % pool.length];
           fallbackIdx++;
           requestHistory(sym, true);
         }, 1_500);
+
 
         // Heartbeat: send a lightweight ping every 20s.
         pingTimer = setInterval(() => {
@@ -157,14 +163,12 @@ export function useMultiDerivTicks(symbols: string[], count: number) {
                   [sym]: { ticks: fresh.slice(-countRef.current), pip },
                 };
               }
-              const latest = fresh[fresh.length - 1];
-              if (!latest || current.ticks[current.ticks.length - 1]?.epoch === latest.epoch) {
-                return prev;
-              }
-              const next = [...current.ticks, latest].slice(-countRef.current);
               return {
                 ...prev,
-                [sym]: { ticks: next, pip: pip ?? current.pip },
+                [sym]: {
+                  ticks: mergeTicks(current.ticks, fresh, countRef.current),
+                  pip: pip ?? current.pip,
+                },
               };
             });
           } else if (data.msg_type === "tick" && data.tick) {
@@ -176,22 +180,20 @@ export function useMultiDerivTicks(symbols: string[], count: number) {
             };
             setFeeds((prev) => {
               const cur = prev[t.symbol] ?? { ticks: [], pip: null };
-              const next = [
-                ...cur.ticks,
-                { epoch: t.epoch, quote: t.quote },
-              ];
-              if (next.length > countRef.current) {
-                next.splice(0, next.length - countRef.current);
-              }
               return {
                 ...prev,
                 [t.symbol]: {
-                  ticks: next,
+                  ticks: mergeTicks(
+                    cur.ticks,
+                    [{ epoch: t.epoch, quote: t.quote }],
+                    countRef.current,
+                  ),
                   pip:
                     typeof t.pip_size === "number" ? t.pip_size : cur.pip,
                 },
               };
             });
+
           }
         } catch (e) {
           console.error("parse err", e);

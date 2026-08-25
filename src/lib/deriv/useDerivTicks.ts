@@ -36,7 +36,9 @@ export function useDerivTicks(symbol: string, count: number) {
     let tickTimer: ReturnType<typeof setInterval> | null = null;
     let staleTimer: ReturnType<typeof setInterval> | null = null;
     let lastMsgAt = Date.now();
+    let lastResyncAt = Date.now();
     let attempt = 0;
+
 
     const clearTimers = () => {
       if (pingTimer) { clearInterval(pingTimer); pingTimer = null; }
@@ -60,22 +62,26 @@ export function useDerivTicks(symbol: string, count: number) {
       try { wsRef.current?.close(); } catch { /* ignore */ }
     };
 
+    const requestWindow = () => {
+      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+      wsRef.current.send(
+        JSON.stringify({
+          ticks_history: symbolRef.current,
+          adjust_start_time: 1,
+          count: Math.max(countRef.current, 1000),
+          end: "latest",
+          start: 1,
+          style: "ticks",
+          req_id: 2,
+        }),
+      );
+    };
+
     const startPolling = () => {
       if (tickTimer) return;
-      tickTimer = setInterval(() => {
-        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
-        wsRef.current.send(
-          JSON.stringify({
-            ticks_history: symbolRef.current,
-            count: Math.max(countRef.current, 1000),
-            end: "latest",
-            start: 1,
-            style: "ticks",
-            req_id: 1,
-          }),
-        );
-      }, 2_000);
+      tickTimer = setInterval(requestWindow, 2_000);
     };
+
 
     const connect = () => {
       ws = new WebSocket(WS_URL);
@@ -105,6 +111,12 @@ export function useDerivTicks(symbol: string, count: number) {
         }, 20_000);
         staleTimer = setInterval(() => {
           if (Date.now() - lastMsgAt > 45_000) forceReconnect();
+          // Periodic authoritative resync so a single dropped tick can never
+          // leave our 1000-tick window out of step with Deriv's own window.
+          if (Date.now() - lastResyncAt > 15_000) {
+            lastResyncAt = Date.now();
+            requestWindow();
+          }
         }, 5_000);
       };
 
@@ -130,26 +142,20 @@ export function useDerivTicks(symbol: string, count: number) {
               epoch: times[i],
               quote: p,
             }));
-            setTicks((prev) => {
-              if (data.req_id === 1 || prev.length === 0) {
-                return fresh.slice(-countRef.current);
-              }
-              const latest = fresh[fresh.length - 1];
-              if (!latest || prev[prev.length - 1]?.epoch === latest.epoch) return prev;
-              const next = [...prev, latest];
-              return next.slice(-countRef.current);
-            });
+            // A full window from Deriv is always authoritative — replace.
+            setTicks((prev) =>
+              fresh.length > 1 || prev.length === 0
+                ? fresh.slice(-countRef.current)
+                : mergeTicks(prev, fresh, countRef.current),
+            );
           } else if (data.msg_type === "tick" && data.tick) {
             const t = data.tick as { epoch: number; quote: number; pip_size?: number };
             if (typeof t.pip_size === "number") setPip(t.pip_size);
-            setTicks((prev) => {
-              const next = [...prev, { epoch: t.epoch, quote: t.quote }];
-              if (next.length > countRef.current) {
-                return next.slice(next.length - countRef.current);
-              }
-              return next;
-            });
+            setTicks((prev) =>
+              mergeTicks(prev, [{ epoch: t.epoch, quote: t.quote }], countRef.current),
+            );
           }
+
         } catch (e) {
           console.error("parse err", e);
         }
@@ -195,4 +201,25 @@ export function useDerivTicks(symbol: string, count: number) {
   }, [symbol, count]);
 
   return { ticks, state, pip };
+}
+
+/**
+ * Merge incoming ticks into the rolling buffer, de-duplicating by epoch and
+ * keeping chronological order. Prevents duplicated or out-of-order ticks from
+ * skewing the digit percentages away from Deriv's own window.
+ */
+export function mergeTicks(prev: Tick[], incoming: Tick[], max: number): Tick[] {
+  if (incoming.length === 0) return prev;
+  const seen = new Set(prev.map((t) => t.epoch));
+  let next = prev;
+  let changed = false;
+  for (const t of incoming) {
+    if (seen.has(t.epoch)) continue;
+    if (!changed) { next = [...prev]; changed = true; }
+    seen.add(t.epoch);
+    next.push(t);
+  }
+  if (!changed) return prev;
+  next.sort((a, b) => a.epoch - b.epoch);
+  return next.length > max ? next.slice(next.length - max) : next;
 }
