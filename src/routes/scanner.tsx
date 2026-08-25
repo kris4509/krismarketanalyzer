@@ -963,6 +963,13 @@ function SignalRow({
             />
           </div>
 
+          {!isEvenOdd && (
+            <div className="mt-3">
+              <EvenOddMini stats={signal.stats} />
+            </div>
+          )}
+
+
           <div
             className={cn(
               "mt-3 rounded-md border-l-2 bg-background/30 px-3 py-2 text-[12px]",
@@ -1037,7 +1044,55 @@ function SignalRow({
   );
 }
 
+function EvenOddMini({ stats }: { stats: DigitStat[] }) {
+  const even = stats
+    .filter((s) => s.digit % 2 === 0)
+    .reduce((a, s) => a + s.percent, 0);
+  const odd = 100 - even;
+  const diff = Math.abs(even - odd);
+  const lead = even === odd ? "—" : even > odd ? "EVEN" : "ODD";
+  const leadColor =
+    lead === "EVEN"
+      ? "var(--rank-most)"
+      : lead === "ODD"
+        ? "var(--rank-second)"
+        : "var(--muted-foreground)";
+
+  return (
+    <div className="rounded-lg border border-border/60 bg-background/30 p-2.5">
+      <div className="flex items-baseline justify-between font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+        <span>Even / Odd Split</span>
+        <span className="tabular-nums" style={{ color: leadColor }}>
+          {lead} +{diff.toFixed(1)}%
+        </span>
+      </div>
+      <div className="mt-1.5 flex h-1.5 w-full overflow-hidden rounded-full bg-muted">
+        <div
+          className="h-full bg-[var(--rank-most)] transition-all"
+          style={{ width: `${even}%` }}
+        />
+        <div
+          className="h-full bg-[var(--rank-second)] transition-all"
+          style={{ width: `${odd}%` }}
+        />
+      </div>
+      <div className="mt-1.5 grid grid-cols-3 font-mono text-[11px] tabular-nums">
+        <span className="text-[var(--rank-most)]">
+          Even {even.toFixed(1)}%
+        </span>
+        <span className="text-center text-muted-foreground">
+          Δ {diff.toFixed(1)}%
+        </span>
+        <span className="text-right text-[var(--rank-second)]">
+          Odd {odd.toFixed(1)}%
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function PatternStrip({
+
   digits,
   winningDigits,
   mode,
