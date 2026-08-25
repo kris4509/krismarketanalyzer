@@ -100,13 +100,18 @@ export function useMultiDerivTicks(symbols: string[], count: number) {
           subscribeTimers.push(t);
         });
 
-        // Slow round-robin poller, only used for symbols that refused to stream.
+        // Slow round-robin refresher: symbols that refused to stream are
+        // polled first; otherwise every symbol gets a periodic authoritative
+        // full-window refresh so a dropped tick can't leave our percentages
+        // out of step with Deriv's own 1000-tick window.
         tickTimer = setInterval(() => {
-          if (fallback.length === 0) return;
-          const sym = fallback[fallbackIdx % fallback.length];
+          const pool = fallback.length > 0 ? fallback : symbols;
+          if (pool.length === 0) return;
+          const sym = pool[fallbackIdx % pool.length];
           fallbackIdx++;
           requestHistory(sym, true);
         }, 1_500);
+
 
         // Heartbeat: send a lightweight ping every 20s.
         pingTimer = setInterval(() => {
