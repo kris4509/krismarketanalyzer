@@ -39,7 +39,19 @@ export function ValidSignalsPanel({
 } = {}) {
   const { feeds, state } = useMultiDerivTicks(SCAN_CODES, 1000);
 
+  // Ticks arrive many times per second across every market. Re-running all
+  // scanners on each one blocks the main thread and makes the panel freeze,
+  // so we snapshot the feeds on a fixed 1.5s cadence instead.
+  const feedsRef = useRef(feeds);
+  feedsRef.current = feeds;
+  const [snapshot, setSnapshot] = useState(feeds);
+  useEffect(() => {
+    const id = setInterval(() => setSnapshot(feedsRef.current), 1500);
+    return () => clearInterval(id);
+  }, []);
+
   const rows = useMemo<Row[]>(() => {
+    const feeds = snapshot;
     const out: Row[] = [];
     for (const meta of SCAN_SYMBOLS) {
       const feed = feeds[meta.code];
