@@ -202,3 +202,24 @@ export function useDerivTicks(symbol: string, count: number) {
 
   return { ticks, state, pip };
 }
+
+/**
+ * Merge incoming ticks into the rolling buffer, de-duplicating by epoch and
+ * keeping chronological order. Prevents duplicated or out-of-order ticks from
+ * skewing the digit percentages away from Deriv's own window.
+ */
+export function mergeTicks(prev: Tick[], incoming: Tick[], max: number): Tick[] {
+  if (incoming.length === 0) return prev;
+  const seen = new Set(prev.map((t) => t.epoch));
+  let next = prev;
+  let changed = false;
+  for (const t of incoming) {
+    if (seen.has(t.epoch)) continue;
+    if (!changed) { next = [...prev]; changed = true; }
+    seen.add(t.epoch);
+    next.push(t);
+  }
+  if (!changed) return prev;
+  next.sort((a, b) => a.epoch - b.epoch);
+  return next.length > max ? next.slice(next.length - max) : next;
+}
