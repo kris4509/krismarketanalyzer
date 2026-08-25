@@ -60,22 +60,26 @@ export function useDerivTicks(symbol: string, count: number) {
       try { wsRef.current?.close(); } catch { /* ignore */ }
     };
 
+    const requestWindow = () => {
+      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+      wsRef.current.send(
+        JSON.stringify({
+          ticks_history: symbolRef.current,
+          adjust_start_time: 1,
+          count: Math.max(countRef.current, 1000),
+          end: "latest",
+          start: 1,
+          style: "ticks",
+          req_id: 2,
+        }),
+      );
+    };
+
     const startPolling = () => {
       if (tickTimer) return;
-      tickTimer = setInterval(() => {
-        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
-        wsRef.current.send(
-          JSON.stringify({
-            ticks_history: symbolRef.current,
-            count: Math.max(countRef.current, 1000),
-            end: "latest",
-            start: 1,
-            style: "ticks",
-            req_id: 1,
-          }),
-        );
-      }, 2_000);
+      tickTimer = setInterval(requestWindow, 2_000);
     };
+
 
     const connect = () => {
       ws = new WebSocket(WS_URL);
