@@ -163,14 +163,12 @@ export function useMultiDerivTicks(symbols: string[], count: number) {
                   [sym]: { ticks: fresh.slice(-countRef.current), pip },
                 };
               }
-              const latest = fresh[fresh.length - 1];
-              if (!latest || current.ticks[current.ticks.length - 1]?.epoch === latest.epoch) {
-                return prev;
-              }
-              const next = [...current.ticks, latest].slice(-countRef.current);
               return {
                 ...prev,
-                [sym]: { ticks: next, pip: pip ?? current.pip },
+                [sym]: {
+                  ticks: mergeTicks(current.ticks, fresh, countRef.current),
+                  pip: pip ?? current.pip,
+                },
               };
             });
           } else if (data.msg_type === "tick" && data.tick) {
@@ -182,22 +180,20 @@ export function useMultiDerivTicks(symbols: string[], count: number) {
             };
             setFeeds((prev) => {
               const cur = prev[t.symbol] ?? { ticks: [], pip: null };
-              const next = [
-                ...cur.ticks,
-                { epoch: t.epoch, quote: t.quote },
-              ];
-              if (next.length > countRef.current) {
-                next.splice(0, next.length - countRef.current);
-              }
               return {
                 ...prev,
                 [t.symbol]: {
-                  ticks: next,
+                  ticks: mergeTicks(
+                    cur.ticks,
+                    [{ epoch: t.epoch, quote: t.quote }],
+                    countRef.current,
+                  ),
                   pip:
                     typeof t.pip_size === "number" ? t.pip_size : cur.pip,
                 },
               };
             });
+
           }
         } catch (e) {
           console.error("parse err", e);
