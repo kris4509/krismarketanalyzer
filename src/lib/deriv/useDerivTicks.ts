@@ -109,6 +109,12 @@ export function useDerivTicks(symbol: string, count: number) {
         }, 20_000);
         staleTimer = setInterval(() => {
           if (Date.now() - lastMsgAt > 45_000) forceReconnect();
+          // Periodic authoritative resync so a single dropped tick can never
+          // leave our 1000-tick window out of step with Deriv's own window.
+          if (Date.now() - lastResyncAt > 15_000) {
+            lastResyncAt = Date.now();
+            requestWindow();
+          }
         }, 5_000);
       };
 
@@ -134,26 +140,20 @@ export function useDerivTicks(symbol: string, count: number) {
               epoch: times[i],
               quote: p,
             }));
-            setTicks((prev) => {
-              if (data.req_id === 1 || prev.length === 0) {
-                return fresh.slice(-countRef.current);
-              }
-              const latest = fresh[fresh.length - 1];
-              if (!latest || prev[prev.length - 1]?.epoch === latest.epoch) return prev;
-              const next = [...prev, latest];
-              return next.slice(-countRef.current);
-            });
+            // A full window from Deriv is always authoritative — replace.
+            setTicks((prev) =>
+              fresh.length > 1 || prev.length === 0
+                ? fresh.slice(-countRef.current)
+                : mergeTicks(prev, fresh, countRef.current),
+            );
           } else if (data.msg_type === "tick" && data.tick) {
             const t = data.tick as { epoch: number; quote: number; pip_size?: number };
             if (typeof t.pip_size === "number") setPip(t.pip_size);
-            setTicks((prev) => {
-              const next = [...prev, { epoch: t.epoch, quote: t.quote }];
-              if (next.length > countRef.current) {
-                return next.slice(next.length - countRef.current);
-              }
-              return next;
-            });
+            setTicks((prev) =>
+              mergeTicks(prev, [{ epoch: t.epoch, quote: t.quote }], countRef.current),
+            );
           }
+
         } catch (e) {
           console.error("parse err", e);
         }
