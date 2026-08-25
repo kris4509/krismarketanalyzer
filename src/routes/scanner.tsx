@@ -963,6 +963,13 @@ function SignalRow({
             />
           </div>
 
+          {!isEvenOdd && (
+            <div className="mt-3">
+              <EvenOddMini stats={signal.stats} />
+            </div>
+          )}
+
+
           <div
             className={cn(
               "mt-3 rounded-md border-l-2 bg-background/30 px-3 py-2 text-[12px]",
