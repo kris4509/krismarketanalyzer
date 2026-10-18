@@ -89,7 +89,7 @@ export function useDerivTicks(symbol: string, count: number) {
 
 
     const connect = () => {
-      ws = new WebSocket(WS_URL);
+      ws = new WebSocket(wsUrl());
       wsRef.current = ws;
 
       ws.onopen = () => {
@@ -170,6 +170,9 @@ export function useDerivTicks(symbol: string, count: number) {
       ws.onclose = () => {
         clearTimers();
         setState("closed");
+        // Try the other Deriv edge host on the next attempt — if one edge is
+        // refusing connections the other usually still works.
+        hostIdx++;
         scheduleReconnect();
       };
     };
