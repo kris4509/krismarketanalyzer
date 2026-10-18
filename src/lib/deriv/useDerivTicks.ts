@@ -95,7 +95,9 @@ export function useDerivTicks(symbol: string, count: number) {
       ws = new WebSocket(wsUrl());
       wsRef.current = ws;
 
+      let didOpen = false;
       ws.onopen = () => {
+        didOpen = true;
         setState("open");
         attempt = 0;
         lastMsgAt = Date.now();
@@ -175,7 +177,8 @@ export function useDerivTicks(symbol: string, count: number) {
         setState("closed");
         // Try the other Deriv edge host on the next attempt — if one edge is
         // refusing connections the other usually still works.
-        hostIdx++;
+        // Only switch address if this one never connected.
+        if (!didOpen) hostIdx++;
         scheduleReconnect();
       };
     };
