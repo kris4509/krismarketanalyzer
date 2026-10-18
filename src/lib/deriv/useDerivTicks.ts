@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 
 const APP_ID = 1089;
-const WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
+// Deriv runs two edge hosts for the same API. When one edge is having
+// trouble (e.g. Cloudflare 520s on the handshake) we fail over to the other.
+const WS_HOSTS = ["ws.derivws.com", "ws.binaryws.com"];
+let hostIdx = 0;
+const wsUrl = () =>
+  `wss://${WS_HOSTS[hostIdx % WS_HOSTS.length]}/websockets/v3?app_id=${APP_ID}`;
 
 export type Tick = {
   epoch: number;
@@ -84,7 +89,7 @@ export function useDerivTicks(symbol: string, count: number) {
 
 
     const connect = () => {
-      ws = new WebSocket(WS_URL);
+      ws = new WebSocket(wsUrl());
       wsRef.current = ws;
 
       ws.onopen = () => {
@@ -165,6 +170,9 @@ export function useDerivTicks(symbol: string, count: number) {
       ws.onclose = () => {
         clearTimers();
         setState("closed");
+        // Try the other Deriv edge host on the next attempt — if one edge is
+        // refusing connections the other usually still works.
+        hostIdx++;
         scheduleReconnect();
       };
     };
