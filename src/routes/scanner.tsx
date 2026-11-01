@@ -23,7 +23,10 @@ import { useMultiDerivTicks } from "@/lib/deriv/useMultiDerivTicks";
 import { computeDigitStats, lastDigit, type DigitStat } from "@/lib/deriv/analysis";
 
 const SCAN_SYMBOLS = DERIV_SYMBOLS.filter(
-  (s) => s.group === "Volatility (1s)" || s.group === "Volatility",
+  (s) =>
+    s.group === "Volatility (1s)" ||
+    s.group === "Volatility" ||
+    s.group === "Jump",
 );
 const SCAN_CODES = SCAN_SYMBOLS.map((s) => s.code);
 const HISTORY_LIMIT = 20;
@@ -398,7 +401,7 @@ function ScannerPage() {
               {VARIANT_LABEL[variant]} Scanner
             </h2>
             <p className="text-sm text-muted-foreground">
-              Monitoring all {SCAN_SYMBOLS.length} plain and 1s volatility markets.{" "}
+              Monitoring all {SCAN_SYMBOLS.length} volatility and Jump markets.{" "}
               <span className="text-foreground/70">
                 {state === "open" ? "Live feed connected." : `Status: ${state}`}
               </span>
