@@ -135,13 +135,37 @@ function ScannerPage() {
   const [crossAlerts, setCrossAlerts] = useState(false);
   const [, setAlertPrefsLoaded] = useState(false);
 
+  // Alerts are opt-in: nothing fires until the user turns it on, and their
+  // choice is remembered between visits.
   useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem("digitpulse.alerts.v1");
+      if (raw) {
+        const p = JSON.parse(raw) as { sound?: boolean; crossAlerts?: boolean };
+        if (typeof p.sound === "boolean") setSound(p.sound);
+        if (typeof p.crossAlerts === "boolean") setCrossAlerts(p.crossAlerts);
+      }
+    } catch {
+      /* ignore */
+    }
+    setAlertPrefsLoaded(true);
     if (typeof window === "undefined" || !("Notification" in window)) {
       setNotify("unsupported");
     } else {
       setNotify(Notification.permission as "default" | "granted" | "denied");
     }
   }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        "digitpulse.alerts.v1",
+        JSON.stringify({ sound, crossAlerts }),
+      );
+    } catch {
+      /* ignore */
+    }
+  }, [sound, crossAlerts]);
 
   useEffect(() => {
     const id = setInterval(() => force((n) => n + 1), 1000);
