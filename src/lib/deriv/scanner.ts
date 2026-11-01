@@ -466,22 +466,22 @@ export const detectOverHnR = buildRuleDetector({
   notBothRankDigits: [5, 6],
 });
 
-// Destroyers: the losing block is suppressed below 10.3% and may hold neither
-// the Green nor the Red bar.
+// Destroyers: only the extreme pair is suppressed — below 10% and holding
+// neither the Green nor the Red bar.
 export const detectUnderDestroyer = buildRuleDetector({
   mode: "under-destroyer",
-  direction: "UNDER 6",
-  winningDigits: range(0, 5),
-  caps: { 6: 10.3, 7: 10.3, 8: 10.3, 9: 10.3 },
-  noRankDigits: [6, 7, 8, 9],
+  direction: "UNDER 7",
+  winningDigits: range(0, 6),
+  caps: { 8: 10, 9: 10 },
+  noRankDigits: [8, 9],
 });
 
 export const detectOverDestroyer = buildRuleDetector({
   mode: "over-destroyer",
-  direction: "OVER 3",
-  winningDigits: range(4, 9),
-  caps: { 0: 10.3, 1: 10.3, 2: 10.3, 3: 10.3 },
-  noRankDigits: [0, 1, 2, 3],
+  direction: "OVER 1",
+  winningDigits: range(2, 9),
+  caps: { 0: 10, 1: 10 },
+  noRankDigits: [0, 1],
 });
 
 // Pro Bot: losing digits below 10.3% with no Green/Red bar on them.
@@ -609,14 +609,14 @@ export const SCANNERS: Record<ScannerMode, ScannerInfo> = {
   "under-destroyer": {
     mode: "under-destroyer",
     label: "Under Destroyer",
-    sub: "6–9 below 10.3% · no Green/Red on 6–9",
+    sub: "8 & 9 below 10% · no Green/Red on them",
     detect: detectUnderDestroyer,
     hasStrategies: false,
   },
   "over-destroyer": {
     mode: "over-destroyer",
     label: "Over Destroyer",
-    sub: "0–3 below 10.3% · no Green/Red on 0–3",
+    sub: "0 & 1 below 10% · no Green/Red on them",
     detect: detectOverDestroyer,
     hasStrategies: false,
   },
