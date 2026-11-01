@@ -23,7 +23,10 @@ import { useMultiDerivTicks } from "@/lib/deriv/useMultiDerivTicks";
 import { computeDigitStats, lastDigit, type DigitStat } from "@/lib/deriv/analysis";
 
 const SCAN_SYMBOLS = DERIV_SYMBOLS.filter(
-  (s) => s.group === "Volatility (1s)" || s.group === "Volatility",
+  (s) =>
+    s.group === "Volatility (1s)" ||
+    s.group === "Volatility" ||
+    s.group === "Jump",
 );
 const SCAN_CODES = SCAN_SYMBOLS.map((s) => s.code);
 const HISTORY_LIMIT = 20;
@@ -128,16 +131,42 @@ function ScannerPage() {
   const lastSignalDirRef = useRef<Map<string, string>>(new Map());
   const [, force] = useState(0);
   const [notify, setNotify] = useState<"default" | "granted" | "denied" | "unsupported">("default");
-  const [sound, setSound] = useState(true);
-  const [crossAlerts, setCrossAlerts] = useState(true);
+  const [sound, setSound] = useState(false);
+  const [crossAlerts, setCrossAlerts] = useState(false);
+  const [prefsLoaded, setPrefsLoaded] = useState(false);
 
+  // Alerts are opt-in: nothing fires until the user turns it on, and their
+  // choice is remembered between visits.
   useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem("digitpulse.alerts.v1");
+      if (raw) {
+        const p = JSON.parse(raw) as { sound?: boolean; crossAlerts?: boolean };
+        if (typeof p.sound === "boolean") setSound(p.sound);
+        if (typeof p.crossAlerts === "boolean") setCrossAlerts(p.crossAlerts);
+      }
+    } catch {
+      /* ignore */
+    }
+    setPrefsLoaded(true);
     if (typeof window === "undefined" || !("Notification" in window)) {
       setNotify("unsupported");
     } else {
       setNotify(Notification.permission as "default" | "granted" | "denied");
     }
   }, []);
+
+  useEffect(() => {
+    if (!prefsLoaded) return;
+    try {
+      window.localStorage.setItem(
+        "digitpulse.alerts.v1",
+        JSON.stringify({ sound, crossAlerts }),
+      );
+    } catch {
+      /* ignore */
+    }
+  }, [prefsLoaded, sound, crossAlerts]);
 
   useEffect(() => {
     const id = setInterval(() => force((n) => n + 1), 1000);
@@ -398,7 +427,7 @@ function ScannerPage() {
               {VARIANT_LABEL[variant]} Scanner
             </h2>
             <p className="text-sm text-muted-foreground">
-              Monitoring all {SCAN_SYMBOLS.length} plain and 1s volatility markets.{" "}
+              Monitoring all {SCAN_SYMBOLS.length} volatility and Jump markets.{" "}
               <span className="text-foreground/70">
                 {state === "open" ? "Live feed connected." : `Status: ${state}`}
               </span>
