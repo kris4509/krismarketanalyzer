@@ -148,7 +148,7 @@ function ScannerPage() {
     } catch {
       /* ignore */
     }
-    setAlertPrefsLoaded(true);
+    setPrefsLoaded(true);
     if (typeof window === "undefined" || !("Notification" in window)) {
       setNotify("unsupported");
     } else {
