@@ -133,7 +133,7 @@ function ScannerPage() {
   const [notify, setNotify] = useState<"default" | "granted" | "denied" | "unsupported">("default");
   const [sound, setSound] = useState(false);
   const [crossAlerts, setCrossAlerts] = useState(false);
-  const [, setAlertPrefsLoaded] = useState(false);
+  const [prefsLoaded, setPrefsLoaded] = useState(false);
 
   // Alerts are opt-in: nothing fires until the user turns it on, and their
   // choice is remembered between visits.
@@ -157,6 +157,7 @@ function ScannerPage() {
   }, []);
 
   useEffect(() => {
+    if (!prefsLoaded) return;
     try {
       window.localStorage.setItem(
         "digitpulse.alerts.v1",
@@ -165,7 +166,7 @@ function ScannerPage() {
     } catch {
       /* ignore */
     }
-  }, [sound, crossAlerts]);
+  }, [prefsLoaded, sound, crossAlerts]);
 
   useEffect(() => {
     const id = setInterval(() => force((n) => n + 1), 1000);
