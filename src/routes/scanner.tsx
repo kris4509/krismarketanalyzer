@@ -131,8 +131,9 @@ function ScannerPage() {
   const lastSignalDirRef = useRef<Map<string, string>>(new Map());
   const [, force] = useState(0);
   const [notify, setNotify] = useState<"default" | "granted" | "denied" | "unsupported">("default");
-  const [sound, setSound] = useState(true);
-  const [crossAlerts, setCrossAlerts] = useState(true);
+  const [sound, setSound] = useState(false);
+  const [crossAlerts, setCrossAlerts] = useState(false);
+  const [, setAlertPrefsLoaded] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined" || !("Notification" in window)) {
